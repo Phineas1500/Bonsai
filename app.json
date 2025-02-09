@@ -22,10 +22,7 @@
         "backgroundColor": "#ffffff"
       },
       "package": "com.phineas1500.Bonsai",
-      "googleServicesFile": {
-        "production": "./google-services.json",
-        "development": "./google-services.json"
-      }
+      "googleServicesFile": "./google-services.json"
     },
     "web": {
       "bundler": "metro",
