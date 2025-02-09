@@ -11,7 +11,10 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.phineas1500.Bonsai",
-      "googleServicesFile": "./GoogleService-Info.plist"
+      "googleServicesFile": "./GoogleService-Info.plist",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -49,6 +52,6 @@
         "projectId": "03f3a0c7-d0ac-4a57-8ea2-691c69dee3d9"
       }
     },
-    "owner": "phineas1500"
+    "owner": "bonsai-org"
   }
 }
