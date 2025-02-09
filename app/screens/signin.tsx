@@ -1,6 +1,7 @@
 import { View, Text, Image } from 'react-native';
 import { Link } from 'expo-router';
 import GoogleSignIn from '@components/GoogleSignIn';
+import GradientButton from '@components/GradientButton';
 
 export default function SignIn() {
   return (
@@ -15,6 +16,11 @@ export default function SignIn() {
           Welcome Back
         </Text>
         <GoogleSignIn />
+        <GradientButton
+          text='Sign In'
+          onPress={() => {}}
+          containerClassName="mt-2"
+        />
         <View className="mt-8 flex-row justify-center items-center gap-2">
           <Text className="text-slate-400">Don't have an account?</Text>
           <Link href="/screens/signup" className="text-blue-400 font-semibold">
