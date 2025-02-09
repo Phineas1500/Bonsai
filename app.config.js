@@ -53,5 +53,8 @@ export default {
       }
     },
     owner: "bonsai-org"
+  },
+  cli: {
+    appVersionSource: "remote"
   }
 };
