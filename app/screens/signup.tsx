@@ -4,7 +4,7 @@ import GoogleSignIn from '@components/GoogleSignIn';
 
 export default function SignUp() {
   return (
-    <View className="flex-1 justify-center items-center bg-slate-900 p-6">
+    <View className="flex-1 justify-center items-center bg-stone-950 p-6">
       <View className="w-full max-w-sm items-center">
         <Image
           source={require('@assets/images/bonsai-logo.png')}

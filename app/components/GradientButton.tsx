@@ -24,7 +24,7 @@ export default function GradientButton({
         colors={['#43e6d4', '#039455']}
         start={{ x: 1, y: 0 }}
         end={{ x: 0, y: 1 }}
-        className="py-4 px-6 items-center justify-center"
+        className="py-3 px-6 items-center justify-center"
       >
         <Text
           className={`text-white font-semibold text-lg ${textClassName}`}

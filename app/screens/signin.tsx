@@ -5,7 +5,7 @@ import GradientButton from '@components/GradientButton';
 
 export default function SignIn() {
   return (
-    <View className="flex-1 justify-center items-center bg-slate-900 p-6">
+    <View className="flex-1 justify-center items-center bg-stone-950 p-6">
       <View className="w-full max-w-sm items-center">
         <Image
           source={require('@assets/images/bonsai-logo.png')}
@@ -17,7 +17,7 @@ export default function SignIn() {
         </Text>
         <GoogleSignIn />
         <GradientButton
-          text='Sign In'
+          text='Sign in'
           onPress={() => {}}
           containerClassName="mt-2"
         />
