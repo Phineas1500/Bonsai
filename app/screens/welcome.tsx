@@ -10,24 +10,27 @@ export default function Welcome() {
         <Text className="text-sm font-light text-teal-500 text-center">
           Welcome to
         </Text>
-        {/* <GradientText
+        <GradientText
           text="Bonsai"
-          className="text-6xl font-black text-center"
-        /> */}
+          classStyle="text-7xl font-black"
+          size={[800, 60]}
+        />
         <Image
           source={require('@assets/images/bonsai-logo.png')}
-          className="w-24 h-24 mb-8"
+          className="w-36 h-36"
           resizeMode="contain"
         />
         <GradientButton
           text='Sign in'
           onPress={() => router.push('/screens/signin')}
-          containerClassName="mt-2"
+          containerClassName="mt-8"
+          textClassName='text-white text-lg'
         />
         <GradientButton
           text='Register'
           onPress={() => router.push('/screens/signup')}
-          containerClassName="mt-2"
+          containerClassName="mt-4"
+          textClassName='text-white text-lg'
         />
       </View>
     </View>
