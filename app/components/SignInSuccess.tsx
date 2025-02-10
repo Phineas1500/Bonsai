@@ -1,8 +1,11 @@
-import { View, Text } from 'react-native';
+import { View, Text, Button } from 'react-native';
+import { useRouter } from 'expo-router';
 import ConfettiCannon from 'react-native-confetti-cannon';
 import { useEffect, useRef } from 'react';
+import GradientButton from '@components/GradientButton';
 
 export default function SignInSuccess() {
+  const router = useRouter();
   const confettiRef = useRef<any>(null);
 
   useEffect(() => {
@@ -14,8 +17,18 @@ export default function SignInSuccess() {
   }, []);
 
   return (
-    <View className="flex-1 justify-center items-center bg-white">
-      <Text className="text-2xl font-bold mb-4">Successfully Signed In! 🎉</Text>
+    <View className="flex-1 bg-stone-950">
+      <View className="absolute top-12 right-6 z-10">
+        <Button
+          title="Start Chatting"
+          onPress={() => router.push('/screens/chat')}
+        />
+      </View>
+
+      <View className="flex-1 justify-center items-center">
+        <Text className="text-2xl font-bold mb-4 text-white">Successfully Signed In! 🎉</Text>
+      </View>
+
       <ConfettiCannon
         ref={confettiRef}
         count={200}
