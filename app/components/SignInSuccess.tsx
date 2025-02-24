@@ -5,6 +5,7 @@ import { useEffect, useRef } from 'react';
 import GradientButton from '@components/GradientButton';
 
 export default function SignInSuccess() {
+  console.log("component mounted");
   const router = useRouter();
   const confettiRef = useRef<any>(null);
 

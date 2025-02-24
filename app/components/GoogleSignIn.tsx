@@ -3,16 +3,16 @@ import * as Google from 'expo-auth-session/providers/google';
 import { Button } from 'react-native';
 import * as AuthSession from 'expo-auth-session';
 import { useEffect, useState } from 'react';
-import SignInSuccess from './SignInSuccess';
+import { useUser } from '../contexts/UserContext';
 
 WebBrowser.maybeCompleteAuthSession();
+//const { setUserInfo } = useUser();
 
 export default function GoogleSignIn() {
-  const [isSignedIn, setIsSignedIn] = useState(false);
 
   const redirectUri = AuthSession.makeRedirectUri({
-    scheme: "com.phineas1500.bonsai",
-  })
+    path: '/screens/authcallback'
+  });
 
   const [request, response, promptAsync] = Google.useAuthRequest({
     clientId: process.env.EXPO_PUBLIC_CLIENT_ID,
@@ -22,6 +22,19 @@ export default function GoogleSignIn() {
     redirectUri
   });
 
+  console.log("Redirect url:", redirectUri);
+
+  /*
+  useEffect(() => {
+    if (response?.type === 'success') {
+      const { authentication } = response;
+      console.log(authentication);
+
+    }
+  }, [response]);
+  */
+
+  /*
   useEffect(() => {
     if (response?.type === 'success') {
       const { authentication } = response;
@@ -31,8 +44,10 @@ export default function GoogleSignIn() {
   }, [response]);
 
   if (isSignedIn) {
+    console.log("sign in success!");
     return <SignInSuccess />;
   }
+  */
 
   return (
     <Button

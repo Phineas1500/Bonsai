@@ -1,12 +1,16 @@
 import { Stack } from 'expo-router';
+import { UserProvider } from "./contexts/UserContext";
 
 export default function RootLayout() {
+
   return (
-    <Stack
-      screenOptions={{
-        headerShown: false,
-        animation: 'none',
-      }}
-    />
+    <UserProvider>
+      <Stack
+        screenOptions={{
+          headerShown: false,
+          animation: 'none',
+        }}
+        />
+    </UserProvider>
   );
 }

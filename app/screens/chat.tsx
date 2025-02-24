@@ -1,6 +1,7 @@
 import { View, Text, TextInput, KeyboardAvoidingView, Platform } from 'react-native';
 import { useState } from 'react';
 import GradientButton from '@components/GradientButton';
+import Navbar from '../components/Navbar';
 
 export default function Chat() {
   const [message, setMessage] = useState('');
@@ -15,14 +16,16 @@ export default function Chat() {
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       className="flex-1 bg-stone-950"
     >
+      <Navbar />
       <View className="flex-1 justify-between p-6">
-        {/* Chat messages will go here */}
-        <View className="flex-1">
-          <Text className="text-white text-xl">Messages will appear here</Text>
+
+        {/* Messages area */}
+        <View>
+
         </View>
-        
+
         {/* Input area */}
-        <View className="flex-row items-center gap-2">
+        <View className="flex-row items-center gap-2 self-end">
           <TextInput
             className="flex-1 bg-stone-800 text-white rounded-lg px-4 py-3"
             placeholder="Type a message..."
