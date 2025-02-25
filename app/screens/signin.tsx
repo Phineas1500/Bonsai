@@ -27,7 +27,7 @@ export default function SignIn() {
         />
         <GoogleSignIn />
 
-        <View className="w-full flex-row items-center my-8">
+        <View className="w-full flex-row items-center my-4">
           <View className="flex-1 h-[1px] bg-gray-700" />
           <Text className="text-gray-400 mx-4">or</Text>
           <View className="flex-1 h-[1px] bg-gray-700" />
@@ -69,8 +69,8 @@ export default function SignIn() {
 
       <View className="w-full flex-row justify-center items-center gap-2 mb-8">
         <Text className="text-slate-400">Don't have an account?</Text>
-        <Link href="/screens/signup" className="text-blue-400 font-semibold">
-          Sign Up
+        <Link href="/screens/signup" className="text-teal-500 font-semibold">
+          Sign Up!
         </Link>
       </View>
     </View>
