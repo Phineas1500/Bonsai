@@ -1,14 +1,7 @@
 import { useState } from "react";
 import { View, Text, TouchableOpacity } from "react-native"
 import { format } from 'date-fns';
-
-export interface TaskItemData {
-    id: string;
-    title: string;
-    description: string;
-    startTime: string;
-    endTime: string;
-}
+import { TaskItemData } from "../screens/tasks";
 
 export default function TaskListItem(
     { itemData }: { itemData: TaskItemData }
