@@ -5,7 +5,6 @@ import Navbar from '../components/Navbar';
 import * as AuthSession from 'expo-auth-session';
 import * as Google from 'expo-auth-session/providers/google';
 import { useUser } from '../contexts/UserContext';
-import axios from "axios";
 
 export default function Settings() {
 
@@ -47,33 +46,8 @@ export default function Settings() {
                 }
             };
             setUserInfo(newUserInfo);
-            console.log("New User info:", newUserInfo);
-
-            fetchCalendarEvents();
         }
     }, [response]);
-
-    //fetch tasks from google calendar
-    const fetchCalendarEvents = async () => {
-    
-        if (!userInfo?.calendarAuth?.access_token) {
-            console.error("No access token available");
-            return;
-        }
-    
-        try {
-            const response = await axios.get("https://www.googleapis.com/oauth2/v1/userinfo", {
-                headers: {
-                    Authorization: `Bearer ${userInfo.calendarAuth.access_token}`
-                }
-            });
-    
-            console.log("Calendar Events:", response.data);
-            return response.data;
-        } catch (error) {
-            console.error("Error fetching calendar events:", error);
-        }
-    };
     
 
   return (

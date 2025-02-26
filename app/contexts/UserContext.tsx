@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useEffect, useState, ReactNode } from "react";
 
-type UserInfo = {
+export interface UserInfo {
     username: string;
     email: string;
     usesGoogle: boolean;
@@ -12,25 +12,21 @@ type UserInfo = {
         access_token:string;
         refresh_token:string;
     }
-} | null;
+};
 
 // Define the type for context
 type UserContextType = {
-    userInfo: UserInfo;
+    userInfo: UserInfo | null;
     setUserInfo: (user: UserInfo) => void;
 };
 
 const UserContext = createContext<UserContextType>({
     userInfo: null,
-    setUserInfo: () => {}
+    setUserInfo: (user: UserInfo | null) => {}
 });
 
 export function UserProvider({ children }: {children: ReactNode}) {
-    const [userInfo, setUserInfo] = useState<UserInfo>(null);
-
-    useEffect(() => {
-        console.log(userInfo);
-    }, [userInfo]);
+    const [userInfo, setUserInfo] = useState<UserInfo | null>(null);
 
     return (
         <UserContext.Provider value={{ userInfo, setUserInfo }}>
