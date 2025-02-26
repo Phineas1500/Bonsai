@@ -13,17 +13,17 @@ export default function ForgotPasswordModal({
   visible,
   onRequestClose
 }: ForgotPasswordModalProps) {
-  const [email, setEmail] = useState('')
-  const [requestSent, setRequestSent] = useState(false)
+  const [email, setEmail] = useState('');
+  const [requestSent, setRequestSent] = useState(false);
 
   // reset password in firebase auth
   const resetPassword = async () => {
     try {
       await sendPasswordResetEmail(auth, email)
-        .then(() => setRequestSent(true))
+        .then(() => setRequestSent(true));
     } catch (err: any) {
       Alert.alert('Error', 'Please enter a valid email');
-      console.log(err.message)
+      console.error(err.message);
     }
   }
 
@@ -53,7 +53,7 @@ export default function ForgotPasswordModal({
             </View>
           ) : (
             <View className="flex-col items-center mt-2">
-              <Text className="text-white my-1">Enter your email and we'll send you a link to reset your password.</Text>          
+              <Text className="text-white my-1 mb-4">Enter your email and we'll send you a link to reset your password.</Text>          
               <TextInput
                 placeholder="Email"
                 className="bg-gray-300 text-gray-600 w-4/5 rounded-xl py-3 px-3"
