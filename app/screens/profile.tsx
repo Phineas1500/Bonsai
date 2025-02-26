@@ -3,6 +3,7 @@ import { useEffect } from "react";
 import Navbar from "@components/Navbar";
 import GradientText from "../components/GradientText";
 import { getAuth } from "firebase/auth";
+import React from "react";
 
 
 export default function Profile() {

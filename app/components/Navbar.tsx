@@ -1,4 +1,4 @@
-import { View, Image, Text, TouchableOpacity, Animated } from "react-native";
+import { View, Image, Text, TouchableOpacity, Animated, Platform, StatusBar } from "react-native";
 import { useState, useRef } from 'react';
 import { router } from 'expo-router';
 
@@ -16,25 +16,34 @@ export default function Navbar() {
         setIsOpen(!isOpen);
     };
 
+    const statusBarHeight = Platform.OS === 'ios' ? 47 : 0;
+
     return (
         <View className="flex-col items-center">
             {/* navbar */}
-            <View className="h-16 bg-gray-900 flex-row items-center justify-between px-5 w-full">
+            <View style={{ paddingTop: statusBarHeight }} className="bg-gray-900 flex-row items-center justify-between px-5 w-full">
                 <Image
                     source={require('@assets/images/bonsai-logo.png')}
                     className="w-10 h-10"
                     resizeMode="contain"
                 />
-                <TouchableOpacity onPress={toggleDropdown}>
-                    <Text className="text-white text-lg">☰</Text>
+                <TouchableOpacity 
+                    onPress={toggleDropdown}
+                    className="p-4" // Increased touch target
+                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }} // Extra hit area
+                >
+                    <Text className="text-white text-2xl">☰</Text>
                 </TouchableOpacity>
             </View>
 
             {/* dropdown menu */}
             <Animated.View
-                    style={{ height: dropdownHeight }}
-                    className="bg-gray-800 overflow-hidden self-end absolute z-50 top-16"
-                >
+                className="bg-gray-800 overflow-hidden self-end absolute z-50"
+                style={{ 
+                    height: dropdownHeight,
+                    top: statusBarHeight + 64 // Using statusBarHeight variable
+                }}
+            >
                 <View className="p-4">
                     <Text 
                         className="text-white text-lg mb-2"

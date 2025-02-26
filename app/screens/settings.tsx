@@ -5,6 +5,7 @@ import Navbar from '../components/Navbar';
 import * as AuthSession from 'expo-auth-session';
 import * as Google from 'expo-auth-session/providers/google';
 import { useUser } from '../contexts/UserContext';
+import React from 'react';
 
 export default function Settings() {
 
