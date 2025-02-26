@@ -6,6 +6,7 @@ interface GradientButtonProps {
   text: string;
   textClassName?: string;
   containerClassName?: string;
+  disabled?: boolean;
   outline?: boolean;
 }
 
@@ -14,6 +15,7 @@ export default function GradientButton({
   text,
   textClassName = '',
   containerClassName = '',
+  disabled = false,
   outline = false
 }: GradientButtonProps) {
   return (
@@ -25,6 +27,7 @@ export default function GradientButton({
         onPress={onPress}
         activeOpacity={0.8}
         className="w-full rounded-2xl overflow-hidden"
+        disabled={disabled}
       >
         <LinearGradient
           colors={['cyan', '#039455']}

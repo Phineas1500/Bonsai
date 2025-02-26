@@ -1,6 +1,10 @@
-import { View, Text, Image, TouchableOpacity, Modal } from 'react-native';
+import { View, Text, Image, TouchableOpacity, Modal, Alert } from 'react-native';
 import { useState } from 'react';
-import { Link } from 'expo-router';
+import { Link, router } from 'expo-router';
+
+import { signInWithEmailAndPassword } from 'firebase/auth';
+import { auth } from 'firebaseConfig';
+
 import GoogleSignIn from '@components/GoogleSignIn';
 import GradientButton from '@components/GradientButton';
 import GradientText from '@components/GradientText';
@@ -11,6 +15,27 @@ export default function SignIn() {
   const [forgotPasswordPrompt, setForgotPasswordPrompt] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  const handleSignIn = async () => {
+    try {
+      setIsLoading(true);
+      setError('');
+
+      if (!email || !password) {
+        throw new Error('Please fill in all fields');
+      }
+
+      await signInWithEmailAndPassword(auth, email, password);
+      router.push('/screens/authcallback');
+    } catch (err: any) {
+      setError(err.message);
+      Alert.alert('Error', err.message);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   return (
     <View className="flex-1 bg-stone-950 p-6 pt-16 justify-between">
@@ -48,11 +73,13 @@ export default function SignIn() {
         />
 
         <GradientButton
-          text="Sign In"
-          onPress={() => { }}
+          text={isLoading ? "Signing In..." : "Sign In"}
+          onPress={handleSignIn}
           containerClassName="mt-4"
           textClassName="text-white text-lg"
+          disabled={isLoading}
         />
+        {error ? <Text className="text-red-500 mt-2 text-center">{error}</Text> : null}
 
         <TouchableOpacity
           className="mt-8"

@@ -5,6 +5,7 @@ import { useRouter } from 'expo-router';
 import GradientButton from './GradientButton';
 import { auth } from 'firebaseConfig';
 import { GoogleAuthProvider, signInWithCredential } from 'firebase/auth';
+import { updateProfile } from 'firebase/auth';
 
 WebBrowser.maybeCompleteAuthSession();
 
@@ -29,8 +30,15 @@ export default function GoogleSignIn() {
         );
 
         signInWithCredential(auth, credential)
-          .then((result) => {
+          .then(async (result) => {
             console.log('Firebase sign-in successful:', result.user);
+            // If user has no display name, set a default one
+            if (!result.user.displayName) {
+              const defaultUsername = `user${Math.floor(Math.random() * 10000)}`;
+              await updateProfile(result.user, {
+                displayName: defaultUsername
+              });
+            }
             router.push('/screens/authcallback');
           })
           .catch((error) => {

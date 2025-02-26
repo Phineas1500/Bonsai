@@ -1,6 +1,10 @@
-import { View, Text, Image, TouchableOpacity } from 'react-native';
+import { View, Text, Image, TouchableOpacity, Alert } from 'react-native';
 import { useState } from 'react';
-import { Link } from 'expo-router';
+import { Link, router } from 'expo-router';
+
+import { createUserWithEmailAndPassword, updateProfile } from 'firebase/auth';
+import { auth } from '../../firebaseConfig';
+
 import GoogleSignIn from '@components/GoogleSignIn';
 import GradientButton from '@components/GradientButton';
 import GradientText from '@components/GradientText';
@@ -11,6 +15,59 @@ export default function SignUp() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [error, setError] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+
+  const validatePassword = (pass: string) => {
+    const minLength = 8;
+    const hasUpperCase = /[A-Z]/.test(pass);
+    const hasLowerCase = /[a-z]/.test(pass);
+    const hasNumbers = /\d/.test(pass);
+    // const hasSpecialChar = /[!@#$%^&*(),.?":{}|<>]/.test(pass);
+
+    if (pass.length < minLength) return 'Password must be at least 8 characters long';
+    if (!hasUpperCase) return 'Password must contain at least one uppercase letter';
+    if (!hasLowerCase) return 'Password must contain at least one lowercase letter';
+    if (!hasNumbers) return 'Password must contain at least one number';
+    // if (!hasSpecialChar) return 'Password must contain at least one special character';
+    return '';
+  };
+
+  const handleSignUp = async () => {
+    try {
+      setIsLoading(true);
+      setError('');
+
+      // Basic validation
+      if (!username || !email || !password || !confirmPassword) {
+        throw new Error('Please fill in all fields');
+      }
+
+      if (password !== confirmPassword) {
+        throw new Error('Passwords do not match');
+      }
+
+      const passwordError = validatePassword(password);
+      if (passwordError) {
+        throw new Error(passwordError);
+      }
+
+      // Create user
+      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+
+      // Set display name
+      await updateProfile(userCredential.user, {
+        displayName: username
+      });
+
+      router.push('/screens/authcallback');
+    } catch (err: any) {
+      setError(err.message);
+      Alert.alert('Error', err.message);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   return (
     <View className="flex-1 bg-stone-950 p-6 pt-16 justify-between">
@@ -61,11 +118,13 @@ export default function SignUp() {
         />
 
         <GradientButton
-          text="Create Account"
-          onPress={() => {}}
+          text={isLoading ? "Creating Account..." : "Create Account"}
+          onPress={handleSignUp}
           containerClassName="mt-4"
           textClassName="text-white text-lg"
+          disabled={isLoading}
         />
+        {error ? <Text className="text-red-500 mt-2 text-center">{error}</Text> : null}
       </View>
 
       <View className="w-full flex-row justify-center items-center gap-2 mb-8">
