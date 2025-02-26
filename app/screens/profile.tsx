@@ -1,9 +1,19 @@
 import { View, Text, Image } from "react-native";
+import { useEffect } from "react";
 import Navbar from "@components/Navbar";
 import GradientText from "../components/GradientText";
+import { getAuth } from "firebase/auth";
 
 
 export default function Profile() {
+  // get user's info
+  const user = getAuth().currentUser
+  var username, email;
+  if (user != null) {
+    username = user.displayName;
+    email = user.email;
+  }
+
   return (
     <>
       <Navbar />
@@ -15,8 +25,13 @@ export default function Profile() {
             resizeMode="contain"
           />
           <GradientText
-            text="First Last"
-            classStyle="text-4xl font-black mt-4"
+            text={username ? username : "First Last"}
+            classStyle="text-4xl font-black mt-8"
+            size={[800, 80]}
+          />
+          <GradientText
+            text={email ? email : "FirstLast@Email"}
+            classStyle="text-xl font-black"
             size={[800, 80]}
           />
         </View>

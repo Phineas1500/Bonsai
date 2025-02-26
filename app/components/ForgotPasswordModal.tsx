@@ -16,6 +16,7 @@ export default function ForgotPasswordModal({
   const [email, setEmail] = useState('')
   const [requestSent, setRequestSent] = useState(false)
 
+  // reset password in firebase auth
   const resetPassword = async () => {
     try {
       await sendPasswordResetEmail(auth, email)
