@@ -4,7 +4,7 @@ import { Alert } from 'react-native';
 import { useEffect } from 'react';
 import { useRouter } from 'expo-router';
 import GradientButton from './GradientButton';
-
+import * as AuthSession from 'expo-auth-session';
 import { auth } from 'firebaseConfig';
 import { GoogleAuthProvider, signInWithCredential, updateProfile } from 'firebase/auth';
 
@@ -23,6 +23,7 @@ export default function GoogleSignIn() {
     androidClientId: process.env.EXPO_PUBLIC_ANDROID_CLIENT_ID,
     webClientId: process.env.EXPO_PUBLIC_CLIENT_ID,
     scopes: ['profile', 'email', 'https://www.googleapis.com/auth/calendar'], // Add Calendar scope
+    redirectUri: AuthSession.makeRedirectUri()
   });
 
   const generateUniqueUsername = async (baseName: string) => {

@@ -5,12 +5,13 @@ import Navbar from '../components/Navbar';
 import { useUser } from '../contexts/UserContext';
 import axios from 'axios';
 import { format, parse, parseISO } from 'date-fns';
+import { createChat, getMessages, getUserChats, sendMessage } from '../components/utils/chatManagement';
 
 // Message type definition
-interface Message {
+export interface Message {
   id: string;
   text: string;
-  sender: 'user' | 'bot';
+  sender: string;
   timestamp: Date;
 }
 
@@ -20,17 +21,11 @@ export default function Chat() {
   const [isLoading, setIsLoading] = useState(false);
   const { userInfo } = useUser();
   const scrollViewRef = useRef<ScrollView>(null);
+  const [chatId, setChatId] = useState<string | null>(null);
   
-  // Add initial welcome message
+  //initialize chat
   useEffect(() => {
-    setMessages([
-      {
-        id: '1',
-        text: "Hi there! I'm your personal assistant. You can ask me to add events to your calendar by saying something like 'Add a meeting with John tomorrow at 2pm'.",
-        sender: 'bot',
-        timestamp: new Date()
-      }
-    ]);
+    initializeChat();
   }, []);
 
   // Scroll to bottom when new messages arrive
@@ -41,6 +36,45 @@ export default function Chat() {
       }, 100);
     }
   }, [messages]);
+
+  // initialize chat
+  const initializeChat = async () => {
+    const userEmail = userInfo?.email || "";
+    const userChats = await getUserChats(userEmail);
+    
+    if (userChats.length <= 0) {
+      
+      //if the user doesn't have a chat, then create one
+      const c = await createChat(userEmail);
+      setChatId(c);
+
+      if (!chatId) {
+        //TODO: handle showing error
+        return;
+      }
+
+      let firstMessage: Message = 
+      {
+        id: '1',
+        text: "Hi there! I'm your personal assistant. You can ask me to add events to your calendar by saying something like 'Add a meeting with John tomorrow at 2pm'.",
+        sender: 'bot',
+        timestamp: new Date()
+      };
+      await sendMessage(chatId, firstMessage);
+      setMessages([firstMessage]);
+    } else {
+      //if the user has a chat, then load messages from it
+      const chatId = userChats[0].id;
+      if (!chatId) {
+        console.error("ChatId is null");
+        return;
+      }
+      setChatId(userChats[0].id); //for now, assume only one chat
+      const messages = await getMessages(chatId);
+      console.log("messages: ", messages);
+      setMessages(messages);
+    }
+  }
 
   // Function to analyze message with OpenAI
   const analyzeWithOpenAI = async (userMessage: string) => {
@@ -121,8 +155,6 @@ export default function Chat() {
       if (!userInfo?.calendarAuth?.access_token) {
         return "I need access to your Google Calendar to add events. Please sign in with Google first.";
       }
-      
-
 
       // Then use it when adding to calendar
       const event = {
@@ -165,14 +197,21 @@ export default function Chat() {
 
   // Handle sending a message
   const handleSend = async () => {
-    if (!message.trim()) return;
+    if (!message.trim() || !chatId) return;
     
     const userMessage = {
       id: Date.now().toString(),
       text: message,
-      sender: 'user' as const,
-      timestamp: new Date()
+      sender: userInfo?.email || "",
+      timestamp: new Date(),
     };
+
+    try {
+      await sendMessage(chatId, userMessage);
+    } catch (error) {
+      //TODO: handle showing error with sending a message
+      console.log("Error sending message:", error);
+    }
     
     setMessages(prev => [...prev, userMessage]);
     setMessage('');
@@ -199,6 +238,13 @@ export default function Chat() {
         sender: 'bot' as const,
         timestamp: new Date()
       };
+
+      try {
+        await sendMessage(chatId, botResponse);
+      } catch (error) {
+        //TODO: handle showing error with sending a message
+        console.log("Error syncing messages with the server:", error);
+      }
       
       setMessages(prev => [...prev, botResponse]);
     } catch (error) {
@@ -235,7 +281,7 @@ export default function Chat() {
             <View 
               key={msg.id} 
               className={`rounded-lg px-4 py-3 my-1 max-w-[80%] ${
-                msg.sender === 'user' 
+                msg.sender != 'bot' 
                   ? 'bg-teal-800 self-end' 
                   : 'bg-stone-800 self-start'
               }`}
