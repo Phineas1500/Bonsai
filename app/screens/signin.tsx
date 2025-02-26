@@ -10,6 +10,7 @@ import GradientButton from '@components/GradientButton';
 import GradientText from '@components/GradientText';
 import ForgotPasswordModal from '@components/ForgotPasswordModal';
 import TextInput from '@components/TextInput';
+import { getUserByUsername, validateSignInMethod } from '@components/utils/userManagement';
 
 export default function SignIn() {
   const [forgotPasswordPrompt, setForgotPasswordPrompt] = useState(false);
@@ -27,7 +28,28 @@ export default function SignIn() {
         throw new Error('Please fill in all fields');
       }
 
-      await signInWithEmailAndPassword(auth, email, password);
+      let loginEmail = email;
+
+      // If input doesn't contain @, assume it's a username
+      if (!email.includes('@')) {
+        const userDoc = await getUserByUsername(email);
+        if (!userDoc) {
+          throw new Error('Username not found');
+        }
+        loginEmail = userDoc.id; // document ID is the email
+      }
+
+      // Validate signin method
+      const validation = await validateSignInMethod(loginEmail, 'email');
+      if (validation.error) {
+        throw new Error(validation.error);
+      }
+
+      if (!validation.exists) {
+        throw new Error('Account does not exist. Please sign up first.');
+      }
+
+      await signInWithEmailAndPassword(auth, loginEmail, password);
       router.push('/screens/authcallback');
     } catch (err: any) {
       setError(err.message);

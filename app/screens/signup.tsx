@@ -3,7 +3,8 @@ import { useState } from 'react';
 import { Link, router } from 'expo-router';
 
 import { createUserWithEmailAndPassword, updateProfile } from 'firebase/auth';
-import { auth } from '../../firebaseConfig';
+import { auth } from 'firebaseConfig';
+import { createUserDocument, validateSignInMethod, getUserByUsername } from '@components/utils/userManagement';
 
 import GoogleSignIn from '@components/GoogleSignIn';
 import GradientButton from '@components/GradientButton';
@@ -43,6 +44,22 @@ export default function SignUp() {
         throw new Error('Please fill in all fields');
       }
 
+      // Check if email is already in use
+      const existingEmail = await validateSignInMethod(email, 'email');
+      if (existingEmail.error) {
+        throw new Error(existingEmail.error);
+      }
+
+      if (existingEmail.exists) {
+        throw new Error('Email is already in use');
+      }
+
+      // Check username uniqueness
+      const existingUser = await getUserByUsername(username);
+      if (existingUser) {
+        throw new Error('Username is already taken');
+      }
+
       if (password !== confirmPassword) {
         throw new Error('Passwords do not match');
       }
@@ -59,6 +76,9 @@ export default function SignUp() {
       await updateProfile(userCredential.user, {
         displayName: username
       });
+
+      // Create user document in Firestore
+      await createUserDocument(email, username, "email");
 
       router.push('/screens/authcallback');
     } catch (err: any) {
