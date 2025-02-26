@@ -44,6 +44,12 @@ export default function Navbar() {
                     </Text>
                     <Text 
                         className="text-white text-lg mb-2"
+                        onPress={() => router.push('/screens/profile')}
+                    >
+                        Profile
+                    </Text>
+                    <Text 
+                        className="text-white text-lg mb-2"
                         onPress={() => router.push('/screens/tasks')}
                     >
                         Tasks
