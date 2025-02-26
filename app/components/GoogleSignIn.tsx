@@ -1,9 +1,10 @@
 import * as WebBrowser from 'expo-web-browser';
 import * as Google from 'expo-auth-session/providers/google';
-import { Button } from 'react-native';
+import { useUser } from '../contexts/UserContext';
 import * as AuthSession from 'expo-auth-session';
 import { useEffect, useState } from 'react';
-import { useUser } from '../contexts/UserContext';
+import SignInSuccess from './SignInSuccess';
+import GradientButton from './GradientButton';
 
 WebBrowser.maybeCompleteAuthSession();
 //const { setUserInfo } = useUser();
@@ -50,9 +51,11 @@ export default function GoogleSignIn() {
   */
 
   return (
-    <Button
-      disabled={!request}
-      title="Sign in with Google"
+    <GradientButton
+      text='Continue with Google'
+      containerClassName=""
+      outline
+      textClassName="text-lg"
       onPress={() => promptAsync()}
     />
   );
