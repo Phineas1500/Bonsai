@@ -5,7 +5,6 @@ import { format, parseISO } from 'date-fns';
 import { LinearGradient } from 'expo-linear-gradient';
 
 import { useUser } from '@contexts/UserContext';
-import Navbar from '@components/Navbar';
 import { createChat, getMessages, getUserChats, sendMessage } from '@components/utils/chatManagement';
 import { ChatMessage, MessageInput, WelcomeOverlay, Message } from '@components/chat';
 
@@ -279,8 +278,6 @@ export default function Chat() {
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       className="flex-1 bg-stone-950"
     >
-      <Navbar />
-
       <View className="flex-1 justify-between">
         <View className="flex-1 relative">
           <ScrollView

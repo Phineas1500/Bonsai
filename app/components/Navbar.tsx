@@ -67,7 +67,7 @@ export default function Navbar() {
                 <View className="p-4">
                     <TouchableOpacity
                         className="flex-row items-center mb-2"
-                        onPress={() => router.push('/screens/chat')}
+                        onPress={() => {toggleDropdown(), router.push('/screens/chat')}}
                     >
                         <Feather name="home" size={20} color={"#14b8a6"} style={{marginRight: 8}} />
                         <Text className="text-white text-lg">Home</Text>
@@ -75,7 +75,7 @@ export default function Navbar() {
 
                     <TouchableOpacity
                         className="flex-row items-center mb-2"
-                        onPress={() => router.push('/screens/tasks')}
+                        onPress={() => {toggleDropdown(), router.push('/screens/tasks')}}
                     >
                         <MaterialCommunityIcons name="target" size={20} color={"#14b8a6"} style={{marginRight: 8}} />
                         <Text className="text-white text-lg">Goals</Text>
@@ -83,7 +83,7 @@ export default function Navbar() {
 
                     <TouchableOpacity
                         className="flex-row items-center mb-2"
-                        onPress={() => router.push('/screens/profile')}
+                        onPress={() => {toggleDropdown(), router.push('/screens/profile')}}
                     >
                         <Feather name="user" size={20} color={"#14b8a6"} style={{marginRight: 8}} />
                         <Text className="text-white text-lg">Profile</Text>
@@ -91,7 +91,7 @@ export default function Navbar() {
 
                     <TouchableOpacity
                         className="flex-row items-center"
-                        onPress={() => router.push('/screens/settings')}
+                        onPress={() => {toggleDropdown(), router.push('/screens/settings')}}
                     >
                         <Feather name="settings" size={20} color={"#14b8a6"} style={{marginRight: 8}} />
                         <Text className="text-white text-lg">Settings</Text>

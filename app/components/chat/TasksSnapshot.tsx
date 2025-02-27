@@ -16,7 +16,7 @@ const TasksSnapshot = () => {
   }
 
   // Show up to 3 tasks in the snapshot
-  const upcomingTasks = tasks.slice(0, 3);
+  const upcomingTasks = tasks.slice(0, 2);
 
   return (
     <View className="py-4">

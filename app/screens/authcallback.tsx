@@ -8,7 +8,7 @@ import { useRouter } from 'expo-router';
 
 export default function Welcome() {
 
-const router = useRouter();
+  const router = useRouter();
   const confettiRef = useRef<any>(null);
 
   useEffect(() => {
@@ -23,7 +23,7 @@ const router = useRouter();
     <View className="flex-1 justify-center items-center bg-stone-950 p-6">
       <View className="w-full max-w-sm items-center">
         <Text className="text-sm font-light text-teal-500 text-center">
-            Successfully Signed In! 🎉
+          Successfully Signed In! 🎉
         </Text>
 
         <GradientButton
@@ -33,15 +33,15 @@ const router = useRouter();
           textClassName='text-white text-lg'
         />
         <ConfettiCannon
-        ref={confettiRef}
-        count={200}
-        origin={{x: -10, y: 0}}
-        autoStart={false}
-        fadeOut={true}
-        explosionSpeed={350}
-        fallSpeed={3000}
-        colors={['#ff0', '#0ff', '#f0f', '#ff0']}
-      />
+          ref={confettiRef}
+          count={200}
+          origin={{ x: -10, y: 0 }}
+          autoStart={false}
+          fadeOut={true}
+          explosionSpeed={350}
+          fallSpeed={3000}
+          colors={['#ff0', '#0ff', '#f0f', '#ff0']}
+        />
       </View>
     </View>
   );

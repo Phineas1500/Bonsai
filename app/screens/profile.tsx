@@ -1,5 +1,4 @@
 import { View, Text, Image, TouchableOpacity } from "react-native";
-import Navbar from "@components/Navbar";
 import GradientText from "@components/GradientText";
 import { getAuth } from "firebase/auth";
 import { useEffect, useState } from "react";
@@ -66,7 +65,6 @@ export default function Profile() {
 
   return (
     <>
-      <Navbar />
       <View className="flex-1 bg-stone-950 p-6 pt-8 justify-between">
         {!loading &&
           <View className="w-full max-w-md items-center">

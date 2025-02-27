@@ -1,7 +1,6 @@
-import { View, Text, Button} from 'react-native';
+import { View, Text, Button } from 'react-native';
 import { useEffect, useState } from 'react';
 import GradientButton from '@components/GradientButton';
-import Navbar from '@components/Navbar';
 import * as AuthSession from 'expo-auth-session';
 import * as Google from 'expo-auth-session/providers/google';
 import { useUser } from '@contexts/UserContext';
@@ -40,7 +39,7 @@ export default function Settings() {
             console.log("Auth Successful:", authObj);
 
             const newUserInfo = {
-                ...(userInfo ?? { username: "", email: "", usesGoogle: false}),
+                ...(userInfo ?? { username: "", email: "", usesGoogle: false }),
                 calendarAuth: {
                     access_token: authObj.accessToken || "",
                     refresh_token: authObj.refreshToken || ""
@@ -51,20 +50,19 @@ export default function Settings() {
     }, [response]);
 
 
-  return (
-    <>
-        <Navbar />
-        <View className="flex-1 flex-col items-start bg-stone-950 p-6">
-            <Text className="text-lg font-light text-teal-500 text-center">
-                Settings
-            </Text>
-            <Button
-                  disabled={!request}
-                  title="Connect Google Calendar"
-                  onPress={() => promptAsync()}
-            />
-        </View>
-    </>
+    return (
+        <>
+            <View className="flex-1 flex-col items-start bg-stone-950 p-6">
+                <Text className="text-lg font-light text-teal-500 text-center">
+                    Settings
+                </Text>
+                <Button
+                    disabled={!request}
+                    title="Connect Google Calendar"
+                    onPress={() => promptAsync()}
+                />
+            </View>
+        </>
 
-  );
+    );
 }
