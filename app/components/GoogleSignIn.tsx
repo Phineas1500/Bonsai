@@ -104,11 +104,11 @@ export default function GoogleSignIn() {
             router.push('/screens/authcallback');
           })
           .catch((error) => {
-            console.error('Firebase sign-in error:', error);
+            // console.error('Firebase sign-in error:', error);
             Alert.alert('Error', error.message);
           });
       } else {
-        console.error('No access token found in response');
+        // console.error('No access token found in response');
         Alert.alert('Error', 'Failed to sign in with Google. No access token found in response.');
       }
     }

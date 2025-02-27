@@ -1,4 +1,4 @@
-import { View, Text, TextInput, KeyboardAvoidingView, Platform, ScrollView, ActivityIndicator } from 'react-native';
+import { View, Text, TextInput, KeyboardAvoidingView, Platform, ScrollView, ActivityIndicator, TouchableOpacity } from 'react-native';
 import { useState, useEffect, useRef } from 'react';
 import GradientButton from '@components/GradientButton';
 import Navbar from '../components/Navbar';
@@ -6,6 +6,8 @@ import { useUser } from '../contexts/UserContext';
 import axios from 'axios';
 import { format, parse, parseISO } from 'date-fns';
 import { createChat, getMessages, getUserChats, sendMessage } from '../components/utils/chatManagement';
+import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 
 // Message type definition
 export interface Message {
@@ -22,7 +24,7 @@ export default function Chat() {
   const { userInfo } = useUser();
   const scrollViewRef = useRef<ScrollView>(null);
   const [chatId, setChatId] = useState<string | null>(null);
-  
+
   //initialize chat
   useEffect(() => {
     initializeChat();
@@ -41,9 +43,9 @@ export default function Chat() {
   const initializeChat = async () => {
     const userEmail = userInfo?.email || "";
     const userChats = await getUserChats(userEmail);
-    
+
     if (userChats.length <= 0) {
-      
+
       //if the user doesn't have a chat, then create one
       const c = await createChat(userEmail);
       setChatId(c);
@@ -53,7 +55,7 @@ export default function Chat() {
         return;
       }
 
-      let firstMessage: Message = 
+      let firstMessage: Message =
       {
         id: '1',
         text: "Hi there! I'm your personal assistant. You can ask me to add events to your calendar by saying something like 'Add a meeting with John tomorrow at 2pm'.",
@@ -80,7 +82,7 @@ export default function Chat() {
   const analyzeWithOpenAI = async (userMessage: string) => {
     try {
       const OPENAI_API_KEY = process.env.EXPO_PUBLIC_OPENAI_API_KEY; // Replace with your API key or use environment variable
-      
+
       const response = await axios.post(
         'https://api.openai.com/v1/chat/completions',
         {
@@ -89,21 +91,21 @@ export default function Chat() {
             {
               role: "system",
               content: `You are a helpful assistant that can add events to a calendar and answer general questions.
-              
+
               For calendar requests:
               If a user is asking to add an event to their calendar, extract the time, title, and location in the user's local time zone (${Intl.DateTimeFormat().resolvedOptions().timeZone}) and respond with JSON in this format:
               {"isCalendarEvent": true, "eventDetails": {"title": "Event title", "description": "Event description", "location": "Event location", "startTime": "ISO string with timezone offset", "endTime": "ISO string with timezone offset"}}
-              
-              Important: 
+
+              Important:
               - When generating timestamps, include the timezone offset in the ISO strings and assume the user is referring to times in their local timezone (${Intl.DateTimeFormat().resolvedOptions().timeZone}).
               - If the user mentions a location (like "at Starbucks" or "in New York"), extract it to the location field. If no location is mentioned, set location to empty string.
               - Keep the title focused on the activity, not the location.
-              
+
               For all other requests:
               Provide a helpful, informative response to the user's question or comment.
               Format your response as:
               {"isCalendarEvent": false, "response": "Your actual helpful answer addressing the user's question goes here. Be thoughtful and informative."}
-              
+
               When determining dates and times, assume today is ${new Date().toDateString()} in time zone ${Intl.DateTimeFormat().resolvedOptions().timeZone}.
               Be forgiving with the user's formatting and extract the key details.`
             },
@@ -121,9 +123,9 @@ export default function Chat() {
           }
         }
       );
-      
+
       const aiResponse = response.data.choices[0].message.content;
-      
+
       // Parse the JSON response
       try {
         return JSON.parse(aiResponse);
@@ -143,7 +145,7 @@ export default function Chat() {
     if (isoString.includes('+') || isoString.includes('Z')) {
       return isoString;
     }
-    
+
     // Otherwise, interpret as local time and add timezone info
     const date = new Date(isoString);
     return date.toISOString();
@@ -170,7 +172,7 @@ export default function Chat() {
           timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone
         }
       };
-      
+
       const response = await axios.post(
         'https://www.googleapis.com/calendar/v3/calendars/primary/events',
         event,
@@ -181,7 +183,7 @@ export default function Chat() {
           }
         }
       );
-      
+
       if (response.status === 200 || response.status === 201) {
         const eventDate = format(parseISO(eventDetails.startTime), 'MMMM do, yyyy');
         const eventTime = format(parseISO(eventDetails.startTime), 'h:mm a');
@@ -198,7 +200,7 @@ export default function Chat() {
   // Handle sending a message
   const handleSend = async () => {
     if (!message.trim() || !chatId) return;
-    
+
     const userMessage = {
       id: Date.now().toString(),
       text: message,
@@ -212,17 +214,17 @@ export default function Chat() {
       //TODO: handle showing error with sending a message
       console.log("Error sending message:", error);
     }
-    
+
     setMessages(prev => [...prev, userMessage]);
     setMessage('');
     setIsLoading(true);
-    
+
     try {
       // Analyze message with OpenAI
       const analysis = await analyzeWithOpenAI(message);
-      
+
       let responseText = "";
-      
+
       if (analysis.isCalendarEvent) {
         // User is asking to add a calendar event
         responseText = await addToCalendar(analysis.eventDetails);
@@ -230,7 +232,7 @@ export default function Chat() {
         // Normal conversation
         responseText = analysis.response;
       }
-      
+
       // Add bot response to messages
       const botResponse = {
         id: (Date.now() + 1).toString(),
@@ -245,11 +247,11 @@ export default function Chat() {
         //TODO: handle showing error with sending a message
         console.log("Error syncing messages with the server:", error);
       }
-      
+
       setMessages(prev => [...prev, botResponse]);
     } catch (error) {
       console.error("Error processing message:", error);
-      
+
       // Add error message
       const errorMessage = {
         id: (Date.now() + 1).toString(),
@@ -257,7 +259,7 @@ export default function Chat() {
         sender: 'bot' as const,
         timestamp: new Date()
       };
-      
+
       setMessages(prev => [...prev, errorMessage]);
     } finally {
       setIsLoading(false);
@@ -265,58 +267,107 @@ export default function Chat() {
   };
 
   return (
-    <KeyboardAvoidingView 
+    <KeyboardAvoidingView
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       className="flex-1 bg-stone-950"
     >
       <Navbar />
-      <View className="flex-1 justify-between p-6">
-        {/* Messages area */}
-        <ScrollView 
-          ref={scrollViewRef}
-          className="flex-1 mb-4"
-          showsVerticalScrollIndicator={false}
-        >
-          {messages.map((msg) => (
-            <View 
-              key={msg.id} 
-              className={`rounded-lg px-4 py-3 my-1 max-w-[80%] ${
-                msg.sender != 'bot' 
-                  ? 'bg-teal-800 self-end' 
-                  : 'bg-stone-800 self-start'
-              }`}
-            >
-              <Text className="text-white">{msg.text}</Text>
-              <Text className="text-gray-400 text-xs mt-1 text-right">
-                {format(msg.timestamp, 'h:mm a')}
-              </Text>
-            </View>
-          ))}
-          {isLoading && (
-            <View className="self-start bg-stone-800 rounded-lg px-4 py-3 my-1">
-              <ActivityIndicator size="small" color="#14b8a6" />
-            </View>
-          )}
-        </ScrollView>
-
-        {/* Input area */}
-        <View className="flex-row items-center gap-2">
-          <TextInput
-            className="flex-1 bg-stone-800 text-white rounded-lg px-4 py-3"
-            placeholder="Type a message..."
-            placeholderTextColor="#9CA3AF"
-            value={message}
-            onChangeText={setMessage}
-            multiline
-          />
-          <GradientButton
-            text="Send"
-            onPress={handleSend}
-            containerClassName="w-20"
-            disabled={isLoading || !message.trim()}
+      <View className="flex-1 justify-between">
+        <View className="flex-1 relative">
+          <ScrollView
+            ref={scrollViewRef}
+            className="flex-1 pb-4 w-full px-6"
+            contentContainerStyle={{ justifyContent: 'flex-end', flexGrow: 1 }}
+            showsVerticalScrollIndicator={false}
+          >
+            {messages.map((msg) => (
+              <ChatMessage key={msg.id} message={msg} />
+            ))}
+            {isLoading && (
+              <View className="bg-stone-800 rounded-lg px-4 py-3 my-1">
+                <ActivityIndicator size="small" color="#14b8a6" />
+              </View>
+            )}
+          </ScrollView>
+          <LinearGradient
+            colors={['#09090b', 'transparent']}
+            className="absolute top-0 left-0 right-0 h-20 z-10 pointer-events-none"
           />
         </View>
+
+        <MessageInput
+          value={message}
+          onChangeText={setMessage}
+          onSend={handleSend}
+          disabled={isLoading || !message.trim()}
+        />
       </View>
     </KeyboardAvoidingView>
+  );
+}
+
+// CHAT MESSAGE COMPONENT
+interface ChatMessageProps {
+  message: Message;
+}
+
+function ChatMessage({ message }: ChatMessageProps) {
+  const isBot = message.sender === 'bot';
+
+  if (isBot) {
+    return (
+      <View className="rounded-lg px-4 py-3 my-1 bg-stone-800">
+        <Text className="text-white">{message.text}</Text>
+        <Text className="text-gray-400 text-xs mt-1 text-right">
+          {format(message.timestamp, 'h:mm a')}
+        </Text>
+      </View>
+    );
+  }
+
+  return (
+    <View className="my-1">
+      <View className="absolute top-[2px] -left-[2px] w-full rounded-lg bg-teal-500 h-full" />
+        <View className="bg-stone-950 rounded-lg px-4 py-3 border border-teal-500">
+          <Text className="text-white">{message.text}</Text>
+          <Text className="text-gray-400 text-xs mt-1 text-right">
+            {format(message.timestamp, 'h:mm a')}
+          </Text>
+        </View>
+    </View>
+  );
+}
+
+// CHAT INPUT COMPONENT
+interface MessageInputProps {
+  value: string;
+  onChangeText: (text: string) => void;
+  onSend: () => void;
+  disabled?: boolean;
+}
+
+function MessageInput({ value, onChangeText, onSend, disabled }: MessageInputProps) {
+  return (
+    <View className="px-6 translate-y-1">
+      <View className="flex-row bg-stone-800 border border-stone-600 rounded-t-lg pr-2 pb-12">
+        <TextInput
+          className="flex-1 text-white px-4 py-3"
+          placeholder="Type a message..."
+          placeholderTextColor="#9CA3AF"
+          value={value}
+          onChangeText={onChangeText}
+          multiline
+        />
+        <TouchableOpacity
+          onPress={onSend}
+          disabled={disabled}
+          className={`p-2 rounded-full ${disabled ? 'opacity-50' : ''}`}
+        >
+          <View className="bg-teal-500 rounded-full p-2">
+            <Ionicons name="chevron-up" size={16} color="white" />
+          </View>
+        </TouchableOpacity>
+      </View>
+    </View>
   );
 }
