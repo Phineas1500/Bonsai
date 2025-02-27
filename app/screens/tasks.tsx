@@ -1,10 +1,10 @@
 import { View, Text, ScrollView } from 'react-native';
 import { useEffect, useState } from 'react';
 import GradientButton from '@components/GradientButton';
-import Navbar from '../components/Navbar';
+import Navbar from '@components/Navbar';
 import { UserInfo, useUser } from '../contexts/UserContext';
 import axios from "axios";
-import TaskListItem from '../components/TaskListItem';
+import TaskListItem from '@components/TaskListItem';
 import React from 'react';
 
 export interface TaskItemData {
@@ -35,10 +35,10 @@ export default function Tasks() {
       console.error("No access token available");
       return;
     }
-  
+
     try {
       console.log("Fetching calendar events with token:", userInfo.calendarAuth.access_token.substring(0, 10) + "...");
-      
+
       // Log the parameters we're using
       const params = {
         timeMin: new Date().toISOString(),
@@ -47,35 +47,35 @@ export default function Tasks() {
         orderBy: "startTime"
       };
       console.log("Request parameters:", params);
-  
+
       const response = await axios.get("https://www.googleapis.com/calendar/v3/calendars/primary/events", {
         headers: {
           Authorization: `Bearer ${userInfo.calendarAuth.access_token}`
         },
         params
       });
-  
+
       // Log the raw response
       console.log("Calendar API Response status:", response.status);
       console.log("Calendar API Response data:", response.data);
-      
+
       if (!response.data.items || response.data.items.length === 0) {
         console.log("No calendar events found!");
         return;
       }
-  
+
       //extract relevant data from response object
       const newTaskList = [];
       const taskItems = response.data.items;
       for (const item of taskItems) {
         console.log("Processing item:", item);
-        
+
         // Skip items without dateTime (all-day events)
         if (!item.start.dateTime) {
           console.log("Skipping item without dateTime:", item.summary);
           continue;
         }
-        
+
         const newTaskObj: TaskItemData = {
           id: item.id,
           title: item.summary,
@@ -85,12 +85,12 @@ export default function Tasks() {
         };
         newTaskList.push(newTaskObj);
       }
-      
+
       console.log("Processed task list:", newTaskList);
       setTaskData(newTaskList);
     } catch (error: any) {
       console.error("Error fetching calendar events:", error);
-      
+
       // More detailed error logging
       if (error.response) {
         // The request was made and the server responded with a status code
@@ -106,7 +106,7 @@ export default function Tasks() {
       }
     }
   };
-  
+
   const taskComponents = () => {
     const components = taskData.map((taskItem: TaskItemData) => {
       console.log(taskItem);

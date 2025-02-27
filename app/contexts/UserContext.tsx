@@ -31,7 +31,7 @@ const UserContext = createContext<UserContextType>({
 
 export function UserProvider({ children }: {children: ReactNode}) {
     const [userInfo, setUserInfo] = useState<UserInfo | null>(null);
-    
+
     // Add a helper function to update specific fields without replacing the entire object
     const updateUserInfo = (updates: Partial<UserInfo>) => {
         setUserInfo(prevState => {

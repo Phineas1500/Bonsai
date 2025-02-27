@@ -1,14 +1,65 @@
-import { View, Text, TextInput, KeyboardAvoidingView, Platform, ScrollView, ActivityIndicator, TouchableOpacity } from 'react-native';
+import { View, Text, TextInput, KeyboardAvoidingView, Platform, ScrollView, ActivityIndicator, TouchableOpacity, Animated, Dimensions } from 'react-native';
 import { useState, useEffect, useRef } from 'react';
-import GradientButton from '@components/GradientButton';
-import Navbar from '../components/Navbar';
+
+import Navbar from '@components/Navbar';
 import { useUser } from '../contexts/UserContext';
+import { createChat, getMessages, getUserChats, sendMessage } from '@components/utils/chatManagement';
+import GradientText from '@components/GradientText';
+import { auth } from '@/firebaseConfig';
+
 import axios from 'axios';
 import { format, parse, parseISO } from 'date-fns';
-import { createChat, getMessages, getUserChats, sendMessage } from '../components/utils/chatManagement';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 
+
+// WELCOME OVERLAY COMPONENT
+function WelcomeOverlay({ opacity }: { opacity: Animated.Value }) {
+
+  // get current time, and set good morning/afternoon/evening/night
+  const currentHour = new Date().getHours();
+  let greeting = "Good morning";
+  if (currentHour > 12 && currentHour < 18) {
+    greeting = "Good afternoon";
+  } else if ((currentHour >= 18 && currentHour < 24) || (currentHour >= 0 && currentHour < 4)) {
+    greeting = "Good evening";
+  }
+
+  return (
+    <Animated.View
+      style={{
+        opacity,
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        backgroundColor: '#09090b',
+        justifyContent: 'center',
+        alignItems: 'center',
+        zIndex: 0,
+        padding: 20,
+      }}
+    >
+      <View className="items-center space-y-6">
+        <GradientText text={`${greeting},\n${auth.currentUser?.displayName}!`} classStyle="text-center text-4xl font-black" size={[400, 80]} />
+
+
+        {/* COMMENT OUT BELOW ONCE WE ADD TASKS TO BE VISIBLE HERE */}
+        <Text className="text-gray-400 text-center">
+          Tap the input box below to start chatting
+        </Text>
+        <View className="animate-bounce">
+          <Ionicons name="chevron-down" size={24} color="#14b8a6" />
+        </View>
+        {/* */}
+      </View>
+    </Animated.View>
+  );
+}
+
+
+//////////////////////////////////////////////////
 // Message type definition
 export interface Message {
   id: string;
@@ -24,6 +75,8 @@ export default function Chat() {
   const { userInfo } = useUser();
   const scrollViewRef = useRef<ScrollView>(null);
   const [chatId, setChatId] = useState<string | null>(null);
+  const [showWelcome, setShowWelcome] = useState(true);
+  const welcomeOpacity = useRef(new Animated.Value(1)).current;
 
   //initialize chat
   useEffect(() => {
@@ -266,12 +319,23 @@ export default function Chat() {
     }
   };
 
+  const fadeOutWelcome = () => {
+    if (showWelcome) {
+      Animated.timing(welcomeOpacity, {
+        toValue: 0,
+        duration: 500,
+        useNativeDriver: true,
+      }).start(() => setShowWelcome(false));
+    }
+  };
+
   return (
     <KeyboardAvoidingView
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       className="flex-1 bg-stone-950"
     >
       <Navbar />
+
       <View className="flex-1 justify-between">
         <View className="flex-1 relative">
           <ScrollView
@@ -295,11 +359,14 @@ export default function Chat() {
           />
         </View>
 
+        {showWelcome && <WelcomeOverlay opacity={welcomeOpacity} />}
+
         <MessageInput
           value={message}
           onChangeText={setMessage}
           onSend={handleSend}
           disabled={isLoading || !message.trim()}
+          onFocus={fadeOutWelcome}
         />
       </View>
     </KeyboardAvoidingView>
@@ -344,9 +411,10 @@ interface MessageInputProps {
   onChangeText: (text: string) => void;
   onSend: () => void;
   disabled?: boolean;
+  onFocus?: () => void;
 }
 
-function MessageInput({ value, onChangeText, onSend, disabled }: MessageInputProps) {
+function MessageInput({ value, onChangeText, onSend, disabled, onFocus }: MessageInputProps) {
   return (
     <View className="px-6 translate-y-1">
       <View className="flex-row bg-stone-800 border border-stone-600 rounded-t-lg pr-2 pb-12">
@@ -356,6 +424,7 @@ function MessageInput({ value, onChangeText, onSend, disabled }: MessageInputPro
           placeholderTextColor="#9CA3AF"
           value={value}
           onChangeText={onChangeText}
+          onFocus={onFocus}
           multiline
         />
         <TouchableOpacity

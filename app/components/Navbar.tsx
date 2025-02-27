@@ -22,7 +22,7 @@ export default function Navbar() {
     const statusBarHeight = Platform.OS === 'ios' ? 30 : 0;
 
     return (
-        <View className="flex-col items-center bg-transparent">
+        <View className="flex-col items-center bg-stone-950">
             {/* navbar */}
             <View style={{ paddingTop: statusBarHeight }} className="flex-row items-center justify-between px-5 w-full z-50">
                 <View className="flex-row items-center">
@@ -75,18 +75,18 @@ export default function Navbar() {
 
                     <TouchableOpacity
                         className="flex-row items-center mb-2"
-                        onPress={() => router.push('/screens/profile')}
-                    >
-                        <Feather name="user" size={20} color={"#14b8a6"} style={{marginRight: 8}} />
-                        <Text className="text-white text-lg">Profile</Text>
-                    </TouchableOpacity>
-
-                    <TouchableOpacity
-                        className="flex-row items-center mb-2"
                         onPress={() => router.push('/screens/tasks')}
                     >
                         <MaterialCommunityIcons name="target" size={20} color={"#14b8a6"} style={{marginRight: 8}} />
                         <Text className="text-white text-lg">Goals</Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                        className="flex-row items-center mb-2"
+                        onPress={() => router.push('/screens/profile')}
+                    >
+                        <Feather name="user" size={20} color={"#14b8a6"} style={{marginRight: 8}} />
+                        <Text className="text-white text-lg">Profile</Text>
                     </TouchableOpacity>
 
                     <TouchableOpacity
