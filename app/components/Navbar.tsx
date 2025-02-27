@@ -1,7 +1,9 @@
-import { View, Image, Text, TouchableOpacity, Animated, Platform, StatusBar } from "react-native";
+import { View, Image, Text, TouchableOpacity, Animated, Platform, StatusBar, Dimensions } from "react-native";
 import { useState, useRef } from 'react';
 import { router } from 'expo-router';
 import GradientText from "./GradientText";
+import { BlurView } from 'expo-blur';
+import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 
 export default function Navbar() {
 
@@ -22,7 +24,7 @@ export default function Navbar() {
     return (
         <View className="flex-col items-center bg-transparent">
             {/* navbar */}
-            <View style={{ paddingTop: statusBarHeight }} className="flex-row items-center justify-between px-5 w-full">
+            <View style={{ paddingTop: statusBarHeight }} className="flex-row items-center justify-between px-5 w-full z-50">
                 <View className="flex-row items-center">
                     <Image
                         source={require('@assets/images/bonsai-logo.png')}
@@ -36,47 +38,66 @@ export default function Navbar() {
                     className="p-4" // Increased touch target
                     hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }} // Extra hit area
                 >
-                    <Text className="text-white text-2xl">☰</Text>
+                    <Text className="text-teal-500 text-2xl">☰</Text>
                 </TouchableOpacity>
             </View>
 
+            {/* blur overlay */}
+            {isOpen && (
+                <TouchableOpacity
+                    className="absolute left-0 right-0 bottom-0 top-0 z-40"
+                    style={{ height: Dimensions.get('window').height }}
+                    onPress={toggleDropdown}
+                >
+                    <BlurView
+                        intensity={20}
+                        className="absolute left-0 right-0 bottom-0 top-0"
+                    />
+                </TouchableOpacity>
+            )}
+
             {/* dropdown menu */}
             <Animated.View
-                className="bg-gray-800 overflow-hidden self-end absolute z-50"
+                className="overflow-hidden self-end absolute z-50"
                 style={{
                     height: dropdownHeight,
-                    top: statusBarHeight + 64 // Using statusBarHeight variable
+                    top: statusBarHeight + 36 // Using statusBarHeight variable
                 }}
             >
                 <View className="p-4">
-                    <Text
-                        className="text-white text-lg mb-2"
+                    <TouchableOpacity
+                        className="flex-row items-center mb-2"
                         onPress={() => router.push('/screens/chat')}
                     >
-                        Home
-                    </Text>
-                    <Text
-                        className="text-white text-lg mb-2"
+                        <Feather name="home" size={20} color={"#14b8a6"} style={{marginRight: 8}} />
+                        <Text className="text-white text-lg">Home</Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                        className="flex-row items-center mb-2"
                         onPress={() => router.push('/screens/profile')}
                     >
-                        Profile
-                    </Text>
-                    <Text
-                        className="text-white text-lg mb-2"
+                        <Feather name="user" size={20} color={"#14b8a6"} style={{marginRight: 8}} />
+                        <Text className="text-white text-lg">Profile</Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                        className="flex-row items-center mb-2"
                         onPress={() => router.push('/screens/tasks')}
                     >
-                        Tasks
-                    </Text>
-                    <Text className="text-white text-lg"
+                        <MaterialCommunityIcons name="target" size={20} color={"#14b8a6"} style={{marginRight: 8}} />
+                        <Text className="text-white text-lg">Goals</Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                        className="flex-row items-center"
                         onPress={() => router.push('/screens/settings')}
                     >
-                        Settings
-                    </Text>
+                        <Feather name="settings" size={20} color={"#14b8a6"} style={{marginRight: 8}} />
+                        <Text className="text-white text-lg">Settings</Text>
+                    </TouchableOpacity>
                 </View>
             </Animated.View>
         </View>
-
-
-
     )
 }
