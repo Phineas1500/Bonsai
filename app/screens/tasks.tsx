@@ -2,7 +2,7 @@ import { View, Text, ScrollView } from 'react-native';
 import { useEffect, useState } from 'react';
 import GradientButton from '@components/GradientButton';
 import Navbar from '@components/Navbar';
-import { UserInfo, useUser } from '../contexts/UserContext';
+import { UserInfo, useUser } from '@contexts/UserContext';
 import axios from "axios";
 import TaskListItem from '@components/TaskListItem';
 import React from 'react';

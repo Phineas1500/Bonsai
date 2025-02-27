@@ -1,10 +1,10 @@
 import { View, Text, Button} from 'react-native';
 import { useEffect, useState } from 'react';
 import GradientButton from '@components/GradientButton';
-import Navbar from '../components/Navbar';
+import Navbar from '@components/Navbar';
 import * as AuthSession from 'expo-auth-session';
 import * as Google from 'expo-auth-session/providers/google';
-import { useUser } from '../contexts/UserContext';
+import { useUser } from '@contexts/UserContext';
 import React from 'react';
 
 export default function Settings() {
@@ -49,7 +49,7 @@ export default function Settings() {
             setUserInfo(newUserInfo);
         }
     }, [response]);
-    
+
 
   return (
     <>
@@ -65,6 +65,6 @@ export default function Settings() {
             />
         </View>
     </>
-    
+
   );
 }

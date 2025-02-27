@@ -8,7 +8,7 @@ import * as AuthSession from 'expo-auth-session';
 import { auth } from 'firebaseConfig';
 import { GoogleAuthProvider, signInWithCredential, updateProfile } from 'firebase/auth';
 
-import { useUser } from '../contexts/UserContext';
+import { useUser } from '@contexts/UserContext';
 import { createUserDocument, getUserByUsername, validateSignInMethod } from '@components/utils/userManagement';
 
 WebBrowser.maybeCompleteAuthSession();

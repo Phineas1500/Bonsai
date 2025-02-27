@@ -7,7 +7,8 @@
       "@/*": ["*"],
       "@assets/*": ["assets/*"],
       "@components/*": ["app/components/*"],
-      "@screens/*": ["app/screens/*"]
+      "@screens/*": ["app/screens/*"],
+      "@contexts/*": ["app/contexts/*"],
     }
   },
   "include": [

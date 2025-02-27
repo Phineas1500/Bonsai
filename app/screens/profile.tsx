@@ -1,6 +1,6 @@
 import { View, Text, Image, TouchableOpacity } from "react-native";
 import Navbar from "@components/Navbar";
-import GradientText from "../components/GradientText";
+import GradientText from "@components/GradientText";
 import { getAuth } from "firebase/auth";
 import { useEffect, useState } from "react";
 import { getUserByEmail } from "@components/utils/userManagement";

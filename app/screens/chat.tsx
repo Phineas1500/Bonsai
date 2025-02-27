@@ -1,21 +1,61 @@
 import { View, Text, TextInput, KeyboardAvoidingView, Platform, ScrollView, ActivityIndicator, TouchableOpacity, Animated, Dimensions } from 'react-native';
 import { useState, useEffect, useRef } from 'react';
-
 import Navbar from '@components/Navbar';
-import { useUser } from '../contexts/UserContext';
+import { useUser } from '@contexts/UserContext';
+import { useTasks } from '@contexts/TasksContext';
 import { createChat, getMessages, getUserChats, sendMessage } from '@components/utils/chatManagement';
 import GradientText from '@components/GradientText';
 import { auth } from '@/firebaseConfig';
-
 import axios from 'axios';
 import { format, parse, parseISO } from 'date-fns';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
+import React from 'react';
 
+// Task Snapshot Component
+function TasksSnapshot() {
+  const { tasks, isLoading } = useTasks();
+
+  if (isLoading && tasks.length === 0) {
+    return (
+      <View className="py-4">
+        <Text className="text-teal-500 font-medium mb-2">Your Tasks</Text>
+        <ActivityIndicator size="small" color="#14b8a6" />
+      </View>
+    );
+  }
+
+  // Show up to 3 tasks in the snapshot
+  const upcomingTasks = tasks.slice(0, 3);
+
+  return (
+    <View className="py-4">
+      <Text className="text-teal-500 font-medium mb-2">Your Tasks</Text>
+      {upcomingTasks.length > 0 ? (
+        <View>
+          {upcomingTasks.map(task => (
+            <View key={task.id} className="bg-stone-800 rounded-lg px-3 py-2 mb-2">
+              <Text className="text-white font-medium">{task.title}</Text>
+              <Text className="text-gray-400 text-xs">
+                {format(new Date(task.startTime), 'MMM d, h:mm a')}
+              </Text>
+            </View>
+          ))}
+          {tasks.length > 3 && (
+            <Text className="text-gray-400 text-sm mt-1">
+              + {tasks.length - 3} more tasks
+            </Text>
+          )}
+        </View>
+      ) : (
+        <Text className="text-gray-400">No upcoming tasks</Text>
+      )}
+    </View>
+  );
+}
 
 // WELCOME OVERLAY COMPONENT
 function WelcomeOverlay({ opacity }: { opacity: Animated.Value }) {
-
   // get current time, and set good morning/afternoon/evening/night
   const currentHour = new Date().getHours();
   let greeting = "Good morning";
@@ -41,18 +81,18 @@ function WelcomeOverlay({ opacity }: { opacity: Animated.Value }) {
         padding: 20,
       }}
     >
-      <View className="items-center space-y-6">
+      <View className="items-center space-y-6 w-full">
         <GradientText text={`${greeting},\n${auth.currentUser?.displayName}!`} classStyle="text-center text-4xl font-black" size={[400, 80]} />
 
+        {/* Added TasksSnapshot component */}
+        <TasksSnapshot />
 
-        {/* COMMENT OUT BELOW ONCE WE ADD TASKS TO BE VISIBLE HERE */}
         <Text className="text-gray-400 text-center">
           Tap the input box below to start chatting
         </Text>
         <View className="animate-bounce">
           <Ionicons name="chevron-down" size={24} color="#14b8a6" />
         </View>
-        {/* */}
       </View>
     </Animated.View>
   );
