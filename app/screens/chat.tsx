@@ -1,112 +1,13 @@
-import { View, Text, TextInput, KeyboardAvoidingView, Platform, ScrollView, ActivityIndicator, TouchableOpacity, Animated, Dimensions } from 'react-native';
-import { useState, useEffect, useRef } from 'react';
-import Navbar from '@components/Navbar';
-import { useUser } from '@contexts/UserContext';
-import { useTasks } from '@contexts/TasksContext';
-import { createChat, getMessages, getUserChats, sendMessage } from '@components/utils/chatManagement';
-import GradientText from '@components/GradientText';
-import { auth } from '@/firebaseConfig';
+import { View, KeyboardAvoidingView, Platform, ScrollView, ActivityIndicator, Animated } from 'react-native';
+import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
-import { format, parse, parseISO } from 'date-fns';
-import { Ionicons } from '@expo/vector-icons';
+import { format, parseISO } from 'date-fns';
 import { LinearGradient } from 'expo-linear-gradient';
-import React from 'react';
 
-// Task Snapshot Component
-function TasksSnapshot() {
-  const { tasks, isLoading } = useTasks();
-
-  if (isLoading && tasks.length === 0) {
-    return (
-      <View className="py-4">
-        <Text className="text-teal-500 font-medium mb-2">Your Tasks</Text>
-        <ActivityIndicator size="small" color="#14b8a6" />
-      </View>
-    );
-  }
-
-  // Show up to 3 tasks in the snapshot
-  const upcomingTasks = tasks.slice(0, 3);
-
-  return (
-    <View className="py-4">
-      <Text className="text-teal-500 font-medium mb-2">Your Tasks</Text>
-      {upcomingTasks.length > 0 ? (
-        <View>
-          {upcomingTasks.map(task => (
-            <View key={task.id} className="bg-stone-800 rounded-lg px-3 py-2 mb-2">
-              <Text className="text-white font-medium">{task.title}</Text>
-              <Text className="text-gray-400 text-xs">
-                {format(new Date(task.startTime), 'MMM d, h:mm a')}
-              </Text>
-            </View>
-          ))}
-          {tasks.length > 3 && (
-            <Text className="text-gray-400 text-sm mt-1">
-              + {tasks.length - 3} more tasks
-            </Text>
-          )}
-        </View>
-      ) : (
-        <Text className="text-gray-400">No upcoming tasks</Text>
-      )}
-    </View>
-  );
-}
-
-// WELCOME OVERLAY COMPONENT
-function WelcomeOverlay({ opacity }: { opacity: Animated.Value }) {
-  // get current time, and set good morning/afternoon/evening/night
-  const currentHour = new Date().getHours();
-  let greeting = "Good morning";
-  if (currentHour > 12 && currentHour < 18) {
-    greeting = "Good afternoon";
-  } else if ((currentHour >= 18 && currentHour < 24) || (currentHour >= 0 && currentHour < 4)) {
-    greeting = "Good evening";
-  }
-
-  return (
-    <Animated.View
-      style={{
-        opacity,
-        position: 'absolute',
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-        backgroundColor: '#09090b',
-        justifyContent: 'center',
-        alignItems: 'center',
-        zIndex: 0,
-        padding: 20,
-      }}
-    >
-      <View className="items-center space-y-6 w-full">
-        <GradientText text={`${greeting},\n${auth.currentUser?.displayName}!`} classStyle="text-center text-4xl font-black" size={[400, 80]} />
-
-        {/* Added TasksSnapshot component */}
-        <TasksSnapshot />
-
-        <Text className="text-gray-400 text-center">
-          Tap the input box below to start chatting
-        </Text>
-        <View className="animate-bounce">
-          <Ionicons name="chevron-down" size={24} color="#14b8a6" />
-        </View>
-      </View>
-    </Animated.View>
-  );
-}
-
-
-//////////////////////////////////////////////////
-// Message type definition
-export interface Message {
-  id: string;
-  text: string;
-  sender: string;
-  timestamp: Date;
-}
+import { useUser } from '@contexts/UserContext';
+import Navbar from '@components/Navbar';
+import { createChat, getMessages, getUserChats, sendMessage } from '@components/utils/chatManagement';
+import { ChatMessage, MessageInput, WelcomeOverlay, Message } from '@components/chat';
 
 export default function Chat() {
   const [message, setMessage] = useState('');
@@ -417,73 +318,5 @@ export default function Chat() {
         />
       </View>
     </KeyboardAvoidingView>
-  );
-}
-
-// CHAT MESSAGE COMPONENT
-interface ChatMessageProps {
-  message: Message;
-}
-
-function ChatMessage({ message }: ChatMessageProps) {
-  const isBot = message.sender === 'bot';
-
-  if (isBot) {
-    return (
-      <View className="rounded-lg px-4 py-3 my-1 bg-stone-800">
-        <Text className="text-white">{message.text}</Text>
-        <Text className="text-gray-400 text-xs mt-1 text-right">
-          {format(message.timestamp, 'h:mm a')}
-        </Text>
-      </View>
-    );
-  }
-
-  return (
-    <View className="my-1">
-      <View className="absolute top-[2px] -left-[2px] w-full rounded-lg bg-teal-500 h-full" />
-        <View className="bg-stone-950 rounded-lg px-4 py-3 border border-teal-500">
-          <Text className="text-white">{message.text}</Text>
-          <Text className="text-gray-400 text-xs mt-1 text-right">
-            {format(message.timestamp, 'h:mm a')}
-          </Text>
-        </View>
-    </View>
-  );
-}
-
-// CHAT INPUT COMPONENT
-interface MessageInputProps {
-  value: string;
-  onChangeText: (text: string) => void;
-  onSend: () => void;
-  disabled?: boolean;
-  onFocus?: () => void;
-}
-
-function MessageInput({ value, onChangeText, onSend, disabled, onFocus }: MessageInputProps) {
-  return (
-    <View className="px-6 translate-y-1">
-      <View className="flex-row bg-stone-800 border border-stone-600 rounded-t-lg pr-2 pb-12">
-        <TextInput
-          className="flex-1 text-white px-4 py-3"
-          placeholder="Type a message..."
-          placeholderTextColor="#9CA3AF"
-          value={value}
-          onChangeText={onChangeText}
-          onFocus={onFocus}
-          multiline
-        />
-        <TouchableOpacity
-          onPress={onSend}
-          disabled={disabled}
-          className={`p-2 rounded-full ${disabled ? 'opacity-50' : ''}`}
-        >
-          <View className="bg-teal-500 rounded-full p-2">
-            <Ionicons name="chevron-up" size={16} color="white" />
-          </View>
-        </TouchableOpacity>
-      </View>
-    </View>
   );
 }
