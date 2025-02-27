@@ -1,8 +1,9 @@
 import { db } from 'firebaseConfig';
-import { doc, getDoc, setDoc, query, collection, where, getDocs } from 'firebase/firestore';
+import { doc, getDoc, setDoc, query, collection, where, getDocs, updateDoc } from 'firebase/firestore';
+import { getAuth, updateProfile } from 'firebase/auth';
 
 export const createUserDocument = async (email: string, username: string, signinType: string) => {
-  await setDoc(doc(db, 'users', username.toLowerCase()), {
+  await setDoc(doc(db, 'users', email.toLowerCase()), {
     email,
     username,
     createdAt: new Date().toISOString(),
@@ -10,8 +11,8 @@ export const createUserDocument = async (email: string, username: string, signin
   });
 };
 
-export const getUserByUsername = async (username: string) => {
-  const userDoc = await getDoc(doc(db, 'users', username.toLowerCase()));
+export const getUserByEmail = async (email: string) => {
+  const userDoc = await getDoc(doc(db, 'users', email.toLowerCase()));
 
   if (!userDoc.exists()) {
     return null;
@@ -24,8 +25,8 @@ export const getUserByUsername = async (username: string) => {
 };
 
 
-export const getUserByEmail = async (email: string) => {
-  const q = query(collection(db, 'users'), where('email', '==', email));
+export const getUserByUsername = async (username: string) => {
+  const q = query(collection(db, 'users'), where('username', '==', username));
   const querySnapshot = await getDocs(q);
 
   if (querySnapshot.empty) {
@@ -51,8 +52,45 @@ export const validateSignInMethod = async (email: string, attemptedMethod: strin
 };
 
 export const changeUsername = async (currentUsername: string, newUsername: string) => {
-  // check if username is taken
-  // update username
+  const auth = getAuth();
+  const user = auth.currentUser;
+  var errMessage = '';
 
-  return { success: false, error: 'test' };
+  if (!newUsername) {
+    return { success: false, error: 'Enter a new username' };
+  }
+
+  if (user != null && user.email != null) {
+    // check if username is taken
+    const existingUser = await getUserByUsername(newUsername);
+    if (existingUser) {
+      errMessage = 'Username is already taken';
+    }
+    else {
+      // update displayName in auth
+      await updateProfile(user, {
+        displayName: newUsername
+      }).then(() => {
+        console.log('Username updated in auth:', user.displayName);
+      }).catch((error) => {
+        console.error('Error:', error);
+        return { success: false, error: 'Failed to change username' };
+      });
+
+      // update username in firestore
+      await updateDoc(doc(db, "users", user.email), {
+        username: newUsername
+      }).then(() => {
+        console.log('Changed username to', newUsername);
+      }).catch((error) => {
+        console.error('Error:', error);
+        return { success: false, error: 'Failed to change username'};
+      });
+    }
+  }
+  else {
+    console.error('Error: null user');
+    return { success: false, error: '' };
+  }
+  return errMessage ? { success: false, error: errMessage } : { success: true, error: '' };
 };

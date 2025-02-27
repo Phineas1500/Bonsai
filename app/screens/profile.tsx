@@ -88,8 +88,11 @@ export default function Profile() {
             <ChangeUsernameModal
               visible={changeUsernamePrompt}
               currentUsername={userInfo ? userInfo.username : ""}
-              onRequestClose={() => setChangeUsernamePrompt(false)}
-            />
+              onRequestClose={() => {
+                setChangeUsernamePrompt(false);
+                loadUserInfo();
+              }}
+              />
           </View>
         }
         <View className="w-full flex-row justify-center items-center gap-2 mb-8">

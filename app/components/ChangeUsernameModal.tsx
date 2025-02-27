@@ -21,9 +21,10 @@ export default function ChangeUsernameModal({
   // change username in firestore
   const usernameChange = async () => {
     try {
-        const changed = await changeUsername(currentUsername, username)
+        const changed = await changeUsername(currentUsername, username);
+        console.log(changed)
         if (changed.success) {
-          setRequestSent(true)
+          setRequestSent(true);
         }
         else {
           throw new Error(changed.error);
