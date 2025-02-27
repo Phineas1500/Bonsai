@@ -35,7 +35,7 @@ const WelcomeOverlay = ({ opacity }: WelcomeOverlayProps) => {
         padding: 20,
       }}
     >
-      <View className="items-center space-y-6 w-full">
+      <View className="items-center space-y-6 w-full -translate-y-20">
         <GradientText
           text={`${greeting},\n${auth.currentUser?.displayName}!`}
           classStyle="text-center text-4xl font-black"
@@ -44,12 +44,12 @@ const WelcomeOverlay = ({ opacity }: WelcomeOverlayProps) => {
 
         <TasksSnapshot />
 
-        <Text className="text-gray-400 text-center">
+        {/* <Text className="text-gray-400 text-center">
           Tap the input box below to start chatting
         </Text>
         <View className="animate-bounce">
           <Ionicons name="chevron-down" size={24} color="#14b8a6" />
-        </View>
+        </View> */}
       </View>
     </Animated.View>
   );

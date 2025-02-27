@@ -1,7 +1,24 @@
 import React from 'react';
-import { View, Text, ActivityIndicator } from 'react-native';
+import { View, Text, ActivityIndicator, TouchableOpacity } from 'react-native';
 import { format } from 'date-fns';
-import { useTasks } from '@contexts/TasksContext';
+import { router } from 'expo-router';
+import { TaskItemData, useTasks } from '@contexts/TasksContext';
+import { MaterialIcons, FontAwesome5 } from '@expo/vector-icons';
+
+// i have no idea how to make this better without some gpt thing
+const getTaskIcon = (task: TaskItemData) => {
+  const title = task.title.toLowerCase();
+  if (title.includes('study') || title.includes('class') || title.includes('homework')) {
+    return <FontAwesome5 name="book" size={20} color="#14B8A6" />;
+  } else if (title.includes('meeting') || title.includes('interview')) {
+    return <MaterialIcons name="meeting-room" size={20} color="#14B8A6" />;
+  } else if (title.includes('gym') || title.includes('workout') || title.includes('run')) {
+    return <FontAwesome5 name="running" size={20} color="#14B8A6" />;
+  }
+
+  return <MaterialIcons name="event-note" size={20} color="#14B8A6" />;
+};
+
 
 const TasksSnapshot = () => {
   const { tasks, isLoading } = useTasks();
@@ -16,29 +33,43 @@ const TasksSnapshot = () => {
   }
 
   // Show up to 3 tasks in the snapshot
-  const upcomingTasks = tasks.slice(0, 2);
+  const upcomingTasks = tasks.slice(0, 4);
 
   return (
     <View className="py-4">
-      <Text className="text-teal-500 font-medium mb-2">Your Tasks</Text>
       {upcomingTasks.length > 0 ? (
-        <View>
+        <View className='w-full'>
           {upcomingTasks.map(task => (
-            <View key={task.id} className="bg-stone-800 rounded-lg px-3 py-2 mb-2">
-              <Text className="text-white font-medium">{task.title}</Text>
-              <Text className="text-gray-400 text-xs">
-                {format(new Date(task.startTime), 'MMM d, h:mm a')}
-              </Text>
+            <View className='flex flex-row' key={task.id}>
+              <View className='w-1/5 flex flex-col items-end justify-start mr-2'>
+                <Text className="text-gray-400 text-xs">
+                  {format(new Date(task.startTime), 'MMM d')}
+                </Text>
+                <Text className="text-gray-400 text-xs ml-2">
+                  {format(new Date(task.startTime), 'h:mm a')}
+                </Text>
+              </View>
+              <View className="flex flex-row w-3/4 bg-stone-800 rounded-lg px-3 py-2 mb-2">
+                <View className="rounded-full bg-opacity-20 justify-center">
+                  {getTaskIcon(task)}
+                </View>
+                <View className='ml-2 flex-1'>
+                  <Text className="text-white font-medium" numberOfLines={2} ellipsizeMode="tail">{task.title}</Text>
+                  <Text className="text-gray-400 text-sm" numberOfLines={3} ellipsizeMode="tail">{task.description}</Text>
+                </View>
+              </View>
             </View>
           ))}
-          {tasks.length > 3 && (
-            <Text className="text-gray-400 text-sm mt-1">
-              + {tasks.length - 3} more tasks
-            </Text>
+          {tasks.length > 2 && (
+            <TouchableOpacity onPress={() => router.push('/screens/tasks')}>
+              <Text className="text-gray-400 text-sm mt-1 text-center">
+                + {tasks.length - 2} more events
+              </Text>
+            </TouchableOpacity>
           )}
         </View>
       ) : (
-        <Text className="text-gray-400">No upcoming tasks</Text>
+        <Text className="text-gray-400">No upcoming events!</Text>
       )}
     </View>
   );
