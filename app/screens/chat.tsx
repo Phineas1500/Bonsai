@@ -78,6 +78,14 @@ export default function Chat() {
   const [showWelcome, setShowWelcome] = useState(true);
   const welcomeOpacity = useRef(new Animated.Value(1)).current;
 
+  const scrollToBottom = () => {
+    if (scrollViewRef.current) {
+      setTimeout(() => {
+        scrollViewRef.current?.scrollToEnd({ animated: true });
+      }, 250);
+    }
+  };
+
   //initialize chat
   useEffect(() => {
     initializeChat();
@@ -85,11 +93,7 @@ export default function Chat() {
 
   // Scroll to bottom when new messages arrive
   useEffect(() => {
-    if (scrollViewRef.current) {
-      setTimeout(() => {
-        scrollViewRef.current?.scrollToEnd({ animated: true });
-      }, 100);
-    }
+    scrollToBottom();
   }, [messages]);
 
   // initialize chat
@@ -340,7 +344,7 @@ export default function Chat() {
         <View className="flex-1 relative">
           <ScrollView
             ref={scrollViewRef}
-            className="flex-1 pb-4 w-full px-6"
+            className="flex-1 pt-10 pb-4 w-full px-6"
             contentContainerStyle={{ justifyContent: 'flex-end', flexGrow: 1 }}
             showsVerticalScrollIndicator={false}
           >
@@ -366,7 +370,10 @@ export default function Chat() {
           onChangeText={setMessage}
           onSend={handleSend}
           disabled={isLoading || !message.trim()}
-          onFocus={fadeOutWelcome}
+          onFocus={() => {
+            fadeOutWelcome();
+            scrollToBottom();
+          }}
         />
       </View>
     </KeyboardAvoidingView>
