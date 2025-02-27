@@ -49,3 +49,10 @@ export const validateSignInMethod = async (email: string, attemptedMethod: strin
 
   return { exists: true, error: null };
 };
+
+export const changeUsername = async (currentUsername: string, newUsername: string) => {
+  // check if username is taken
+  // update username
+
+  return { success: false, error: 'test' };
+};

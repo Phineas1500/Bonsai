@@ -1,31 +1,38 @@
-import { Modal, View, Text, TextInput, TouchableOpacity, Alert } from 'react-native';
+import { Modal, View, Text, TextInput, TouchableOpacity } from 'react-native';
 import { useState } from 'react';
-import GradientButton from './GradientButton';
-import { sendPasswordResetEmail } from 'firebase/auth';
-import { auth } from 'firebaseConfig';
+import GradientButton from '@components/GradientButton';
+import { changeUsername } from '@components/utils/userManagement';
 
 interface ForgotPasswordModalProps {
+  currentUsername: string;
   visible: boolean;
   onRequestClose: () => void;
 }
 
-export default function ForgotPasswordModal({
+export default function ChangeUsernameModal({
+  currentUsername,
   visible,
   onRequestClose
 }: ForgotPasswordModalProps) {
-  const [email, setEmail] = useState('');
+  const [username, setUsername] = useState('');
   const [requestSent, setRequestSent] = useState(false);
+  const [error, setError] = useState('');
 
-  // reset password in firebase auth
-  const resetPassword = async () => {
+  // change username in firestore
+  const usernameChange = async () => {
     try {
-      await sendPasswordResetEmail(auth, email)
-        .then(() => setRequestSent(true));
-    } catch (err: any) {
-      Alert.alert('Error', 'Please enter a valid email');
-      // console.error(err.message);
-    }
-  }
+        const changed = await changeUsername(currentUsername, username)
+        if (changed.success) {
+          setRequestSent(true)
+        }
+        else {
+          throw new Error(changed.error);
+        }
+      } catch (err: any) {
+        setError(err.message);
+        // console.error(err.message);
+      }
+   }
 
   return (
     <Modal
@@ -36,15 +43,16 @@ export default function ForgotPasswordModal({
     >
       <View className="flex-1 mt-[35vh] items-center">
         <View className="bg-gray-700 w-5/6 p-4 rounded-lg">
-          <Text className="text-white text-2xl font-bold">Forgot your password?</Text>
+          <Text className="text-white text-2xl font-bold">Enter a New Username:</Text>
           {requestSent ? (
             <View>
-              <Text className="text-white my-1">An email with instructions to reset your password has been sent.</Text>          
+              <Text className="text-white my-1">Username has been changed to <Text className="font-bold">{username}</Text></Text>          
               <TouchableOpacity
                 className="rounded-xl items-center"
                 onPress={() => {
                   setRequestSent(false);
-                  setEmail('');
+                  setUsername('');
+                  setError('');
                   onRequestClose();
                 }}
               >
@@ -53,22 +61,26 @@ export default function ForgotPasswordModal({
             </View>
           ) : (
             <View className="flex-col items-center mt-2">
-              <Text className="text-white my-1 mb-4">Enter your email and we'll send you a link to reset your password.</Text>          
+              {error ? <Text className="text-red-500 mb-2">{error}</Text> : null}
               <TextInput
-                placeholder="Email"
+                placeholder="New username"
                 className="bg-gray-300 text-gray-600 w-4/5 rounded-xl py-3 px-3"
                 editable={true}
-                value={email}
-                onChangeText={setEmail}
+                value={username}
+                onChangeText={setUsername}
               />
               <GradientButton
-                text='RESET'
-                onPress={resetPassword}
+                text='CHANGE USERNAME'
+                onPress={usernameChange}
                 containerClassName="w-4/5 mt-2"
               />
               <TouchableOpacity
                 className="rounded-xl"
-                onPress={onRequestClose}
+                onPress={() => {
+                    setUsername('');
+                    setError('');
+                    onRequestClose();
+                }}
               >
                 <Text className="text-white font-bold text-md mt-3">Cancel</Text>
               </TouchableOpacity>

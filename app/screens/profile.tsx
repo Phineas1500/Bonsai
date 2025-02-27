@@ -1,9 +1,10 @@
-import { View, Text, Image } from "react-native";
+import { View, Text, Image, TouchableOpacity } from "react-native";
 import Navbar from "@components/Navbar";
 import GradientText from "../components/GradientText";
 import { getAuth } from "firebase/auth";
 import { useEffect, useState } from "react";
 import { getUserByEmail } from "@components/utils/userManagement";
+import ChangeUsernameModal from "@components/ChangeUsernameModal";
 
 // interface of all user info stored in firestore
 interface UserInfo {
@@ -14,8 +15,9 @@ interface UserInfo {
 }
 
 export default function Profile() {
-  const [userInfo, setUserInfo] = useState<UserInfo | null>(null)
-  const [loading, setLoading] = useState(true)
+  const [userInfo, setUserInfo] = useState<UserInfo | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [changeUsernamePrompt, setChangeUsernamePrompt] = useState(false);
 
   const loadUserInfo = async () => {
     // get current user from auth
@@ -83,8 +85,21 @@ export default function Profile() {
               classStyle="text-xl font-black"
               size={[800, 80]}
             />
+            <ChangeUsernameModal
+              visible={changeUsernamePrompt}
+              currentUsername={userInfo ? userInfo.username : ""}
+              onRequestClose={() => setChangeUsernamePrompt(false)}
+            />
           </View>
         }
+        <View className="w-full flex-row justify-center items-center gap-2 mb-8">
+          <TouchableOpacity
+            className="mt-8"
+            onPress={() => setChangeUsernamePrompt(true)}
+          >
+            <Text className="text-teal-500">Change Username</Text>
+          </TouchableOpacity>
+        </View>
       </View>
     </>
   );
