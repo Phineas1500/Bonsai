@@ -3,12 +3,19 @@ import { doc, getDoc, setDoc, query, collection, where, getDocs, updateDoc } fro
 import { getAuth, updateProfile } from 'firebase/auth';
 
 export const createUserDocument = async (email: string, username: string, signinType: string) => {
-  await setDoc(doc(db, 'users', email.toLowerCase()), {
-    email,
-    username,
-    createdAt: new Date().toISOString(),
-    signinType,
-  });
+  const docRef = doc(db, 'users', email.toLowerCase());
+  const docSnap = await getDoc(docRef);
+
+  // Only create if it doesn't exist
+  if (!docSnap.exists()) {
+    await setDoc(doc(db, 'users', email.toLowerCase()), {
+      email,
+      username,
+      createdAt: new Date().toISOString(),
+      signinType,
+    });
+    console.log('User document created:', email);
+  }
 };
 
 export const getUserByEmail = async (email: string) => {
@@ -41,7 +48,9 @@ export const validateSignInMethod = async (email: string, attemptedMethod: strin
   if (!user) return { exists: false, error: null };
 
   const userData = user.data();
-  if (userData.signinType !== attemptedMethod) {
+
+  // only if signintype was google and they want to sign in with email, fail it
+  if (userData.signinType == "google" && attemptedMethod == "email") {
     return {
       exists: true,
       error: `This account was created using ${userData.signinType}. Please sign in with ${userData.signinType} instead.`
