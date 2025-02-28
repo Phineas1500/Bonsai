@@ -1,10 +1,10 @@
 import { db } from 'firebaseConfig';
 import { doc, addDoc, serverTimestamp, collection, where, query, getDocs, getDoc, setDoc, orderBy } from 'firebase/firestore';
-import { Message } from '@/app/screens/chat';
+import { Message } from '@components/chat';
 
 /**
  * Creates a chat document in the database in the 'chats' collection
- * 
+ *
  * @param email the email of the user who is creating the chat
  * @returns the id of the chat that was created
  */
@@ -55,7 +55,7 @@ export const getMessages = async (chatId: string) => {
                 id: doc.id,
                 text: data.text,
                 sender: data.sender,
-                timestamp: data.timestamp?.toDate ? data.timestamp.toDate() : new Date(), //ensure valid Date object 
+                timestamp: data.timestamp?.toDate ? data.timestamp.toDate() : new Date(), //ensure valid Date object
             }
             return currentMessage;
         });
@@ -87,13 +87,13 @@ export const sendMessage = async (chatId: string, message: Message) => {
     try {
         const messagesRef = collection(db, `chats/${chatId}/messages`);
 
-        //add the message to the 'messages' subcollection 
+        //add the message to the 'messages' subcollection
         await addDoc(messagesRef, {
-            text: message.text, 
+            text: message.text,
             sender: message.sender, //either user email or 'bot'
             timestamp: message.timestamp
         });
-        
+
         //update the recently modified dates for the chat
         const chatRef = doc(db, `chats/${chatId}`);
         await setDoc(chatRef, {

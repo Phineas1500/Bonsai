@@ -3,6 +3,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 import { format, parseISO } from 'date-fns';
 import { LinearGradient } from 'expo-linear-gradient';
+import { GoogleGenerativeAI } from '@google/generative-ai';
 
 import { useUser } from '@contexts/UserContext';
 import { createChat, getMessages, getUserChats, sendMessage } from '@components/utils/chatManagement';
@@ -78,16 +79,9 @@ export default function Chat() {
   // Function to analyze message with OpenAI
   const analyzeWithOpenAI = async (userMessage: string) => {
     try {
-      const OPENAI_API_KEY = process.env.EXPO_PUBLIC_OPENAI_API_KEY; // Replace with your API key or use environment variable
+      // const OPENAI_API_KEY = process.env.EXPO_PUBLIC_OPENAI_API_KEY;
 
-      const response = await axios.post(
-        'https://api.openai.com/v1/chat/completions',
-        {
-          model: "gpt-3.5-turbo",
-          messages: [
-            {
-              role: "system",
-              content: `You are a helpful assistant that can add events to a calendar and answer general questions.
+      const sys_message = `You are a helpful assistant that can add events to a calendar and answer general questions.
 
               For calendar requests:
               If a user is asking to add an event to their calendar, extract the time, title, and location in the user's local time zone (${Intl.DateTimeFormat().resolvedOptions().timeZone}) and respond with JSON in this format:
@@ -101,30 +95,68 @@ export default function Chat() {
               For all other requests:
               Provide a helpful, informative response to the user's question or comment.
               Format your response as:
+
+              [AI_RESPONSE]
               {"isCalendarEvent": false, "response": "Your actual helpful answer addressing the user's question goes here. Be thoughtful and informative."}
+              [AI_RESPONSE]
 
               When determining dates and times, assume today is ${new Date().toDateString()} in time zone ${Intl.DateTimeFormat().resolvedOptions().timeZone}.
-              Be forgiving with the user's formatting and extract the key details.`
-            },
-            {
-              role: "user",
-              content: userMessage
-            }
-          ],
-          temperature: 0.2,
-        },
-        {
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${OPENAI_API_KEY}`
-          }
-        }
-      );
+              Be forgiving with the user's formatting and extract the key details.
 
-      const aiResponse = response.data.choices[0].message.content;
+              Remember, keep your response as a valid JSON format. Do not prepend your response with backticks.`
+
+      // const response = await axios.post(
+      //   'https://api.openai.com/v1/chat/completions',
+      //   {
+      //     model: "gpt-3.5-turbo",
+      //     messages: [
+      //       {
+      //         role: "system",
+      //         content: sys_message
+      //       },
+      //       {
+      //         role: "user",
+      //         content: userMessage
+      //       }
+      //     ],
+      //     temperature: 0.2,
+      //   },
+      //   {
+      //     headers: {
+      //       'Content-Type': 'application/json',
+      //       'Authorization': `Bearer ${OPENAI_API_KEY}`
+      //     }
+      //   }
+      // );
+
+      // const aiResponse = response.data.choices[0].message.content;
+
+      const GEMINI_API_KEY = process.env.EXPO_PUBLIC_GEMINI_API_KEY;
+      if (!GEMINI_API_KEY) {
+        throw new Error('GEMINI_API_KEY is not defined');
+      }
+      const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
+      const model = await genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
+
+      const generationConfig = {
+        temperature: 0.2,
+        maxOutputTokens: 2048,
+      }
+
+      const chat = model.startChat({
+        generationConfig,
+        systemInstruction: {
+          role: 'system',
+          parts: [{text: sys_message}],
+        },
+      });
+
+      const result = await chat.sendMessage(userMessage);
+      let aiResponse = result.response.text();
 
       // Parse the JSON response
       try {
+        aiResponse = aiResponse.replace(/\[AI_RESPONSE\]/g, '').trim();
         return JSON.parse(aiResponse);
       } catch (e) {
         console.error("Failed to parse OpenAI response:", aiResponse);
