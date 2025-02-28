@@ -86,7 +86,7 @@ export default function GoogleSignIn() {
               // Update user info with Firebase user data
               updateUserInfo({
                 username: uniqueUsername,
-                email: result.user.email || '',
+                email: result.user.email,
                 id_token: response.authentication?.idToken || undefined
               });
 
@@ -100,6 +100,13 @@ export default function GoogleSignIn() {
                 await createUserDocument(result.user.email, uniqueUsername, "google");
               }
             }
+
+            //add the username and email to user info context
+            updateUserInfo({
+              username: result.user.displayName || 'user',
+              email: result.user.email,
+              id_token: response.authentication?.idToken || undefined
+            });
 
             router.push('/screens/authcallback');
           })
