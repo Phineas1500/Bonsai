@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { getUserByEmail } from "@components/utils/userManagement";
 import ChangeUsernameModal from "@components/ChangeUsernameModal";
 import DeleteAccountModal from "../components/DeleteAccountModal";
+import { format } from 'date-fns';
 
 // interface of all user info stored in firestore
 interface UserInfo {
@@ -76,6 +77,7 @@ export default function Profile() {
                 className="w-48 h-48 rounded-2xl mb-2 bg-gray-800"
                 resizeMode="contain"
               />
+              <Text className="text-teal-500">User since {format(new Date(userInfo ? userInfo.createdAt : '0000'), 'MM/dd/yyyy')}</Text>
               <GradientText
                 text={userInfo ? userInfo.username : "First Last"}
                 classStyle="text-4xl font-black mt-6"

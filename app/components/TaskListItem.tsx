@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { View, Text, TouchableOpacity } from "react-native"
 import { format } from 'date-fns';
-import { TaskItemData } from "@screens/tasks";
+import { TaskItemData } from '@contexts/TasksContext';
 
 export default function TaskListItem(
     { itemData }: { itemData: TaskItemData }
