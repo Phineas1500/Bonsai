@@ -367,6 +367,7 @@ export default function Chat() {
     <KeyboardAvoidingView
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       className="flex-1 bg-stone-950"
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
     >
       <View className="flex-1 justify-between">
         <View className="flex-1 relative">

@@ -1,8 +1,9 @@
 import { View, Text, ScrollView, ActivityIndicator, RefreshControl } from 'react-native';
 import React, { useCallback, useState } from 'react';
 import { useUser } from '@contexts/UserContext';
-import TaskListItem from '@components/TaskListItem';
+import TaskItem from '@components/TaskItem';
 import { useTasks, TaskItemData } from '@contexts/TasksContext';
+import GradientText from '../components/GradientText';
 
 export default function Tasks() {
   const { userInfo } = useUser();
@@ -17,16 +18,19 @@ export default function Tasks() {
 
   const taskComponents = () => {
     return tasks.map((taskItem: TaskItemData) => (
-      <TaskListItem key={taskItem.id} itemData={taskItem} />
+      <>
+        <TaskItem key={taskItem.id} itemData={taskItem} />
+        <View key={`${taskItem.id}-divider`} className="h-2" />
+      </>
     ));
   };
 
   return (
     <>
-      <View className="flex-1 flex-col items-start bg-stone-950 p-6">
-        <Text className="text-2xl font-light text-teal-500 text-center">
-          Tasks:
-        </Text>
+      <View className="flex-1 flex-col items-start bg-stone-950 px-6 pt-6">
+        <View className="w-full items-center justify-center">
+          <GradientText classStyle="text-center text-4xl font-black" text="All Events" size={[200, 50]} />
+        </View>
         {error && (
           <View className="w-full p-4 bg-red-900 rounded-md my-2">
             <Text className="text-white">{error}</Text>
@@ -39,7 +43,7 @@ export default function Tasks() {
           </View>
         ) : (
           <ScrollView
-            className="w-full"
+            className="w-full pt-6"
             refreshControl={
               <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#14b8a6" />
             }
@@ -47,6 +51,7 @@ export default function Tasks() {
             {tasks.length > 0 ? taskComponents() : (
               <Text className="text-gray-400 text-center mt-8">No tasks found</Text>
             )}
+            <View className="h-20" />
           </ScrollView>
         )}
       </View>

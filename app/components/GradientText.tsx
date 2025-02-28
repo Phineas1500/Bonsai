@@ -5,7 +5,7 @@ import MaskedView from '@react-native-masked-view/masked-view';
 interface GradientTextProps {
   text: string;
   classStyle?: string;
-  size?: [number, number];
+  size: [number, number];
 }
 
 export default function GradientText({ text, classStyle = '', size }: GradientTextProps) {
