@@ -7,7 +7,7 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 
 import { useUser } from '@contexts/UserContext';
 import { createChat, getMessages, getUserChats, sendMessage } from '@components/utils/chatManagement';
-import { ChatMessage, MessageInput, WelcomeOverlay, Message } from '@components/chat';
+import { ChatMessage, MessageInput, WelcomeOverlay, Message, EventConfirmationModal } from '@components/chat';
 
 export default function Chat() {
   const [message, setMessage] = useState('');
@@ -18,6 +18,8 @@ export default function Chat() {
   const [chatId, setChatId] = useState<string | null>(null);
   const [showWelcome, setShowWelcome] = useState(true);
   const welcomeOpacity = useRef(new Animated.Value(1)).current;
+  const [showEventConfirmation, setShowEventConfirmation] = useState(false);
+  const [pendingEvent, setPendingEvent] = useState<any>(null);
 
   const scrollToBottom = () => {
     if (scrollViewRef.current) {
@@ -163,7 +165,12 @@ export default function Chat() {
 
       // Parse the JSON response
       try {
+        // Remove AI_RESPONSE tags if present
         aiResponse = aiResponse.replace(/\[AI_RESPONSE\]/g, '').trim();
+        
+        // Remove markdown code formatting (```json and ```)
+        aiResponse = aiResponse.replace(/```json\s*/g, '').replace(/```\s*$/g, '').trim();
+        
         return JSON.parse(aiResponse);
       } catch (e) {
         console.error("Failed to parse OpenAI response:", aiResponse);
@@ -247,7 +254,6 @@ export default function Chat() {
     try {
       await sendMessage(chatId, userMessage);
     } catch (error) {
-      //TODO: handle showing error with sending a message
       console.log("Error sending message:", error);
     }
 
@@ -256,38 +262,38 @@ export default function Chat() {
     setIsLoading(true);
 
     try {
-      // Analyze message with OpenAI
+      // Analyze message with OpenAI/Gemini
       const analysis = await analyzeWithOpenAI(message);
 
-      let responseText = "";
-
       if (analysis.isCalendarEvent) {
-        // User is asking to add a calendar event
-        responseText = await addToCalendar(analysis.eventDetails);
+        // Store the event details and show confirmation
+        setPendingEvent(analysis.eventDetails);
+        setShowEventConfirmation(true);
+        setIsLoading(false);
       } else {
-        // Normal conversation
-        responseText = analysis.response;
+        // Normal conversation flow
+        const responseText = analysis.response;
+        
+        // Add bot response to messages
+        const botResponse = {
+          id: (Date.now() + 1).toString(),
+          text: responseText,
+          sender: 'bot' as const,
+          timestamp: new Date()
+        };
+
+        try {
+          await sendMessage(chatId, botResponse);
+        } catch (error) {
+          console.log("Error syncing messages with the server:", error);
+        }
+
+        setMessages(prev => [...prev, botResponse]);
+        setIsLoading(false);
       }
-
-      // Add bot response to messages
-      const botResponse = {
-        id: (Date.now() + 1).toString(),
-        text: responseText,
-        sender: 'bot' as const,
-        timestamp: new Date()
-      };
-
-      try {
-        await sendMessage(chatId, botResponse);
-      } catch (error) {
-        //TODO: handle showing error with sending a message
-        console.log("Error syncing messages with the server:", error);
-      }
-
-      setMessages(prev => [...prev, botResponse]);
     } catch (error) {
       console.error("Error processing message:", error);
-
+      
       // Add error message
       const errorMessage = {
         id: (Date.now() + 1).toString(),
@@ -297,9 +303,54 @@ export default function Chat() {
       };
 
       setMessages(prev => [...prev, errorMessage]);
-    } finally {
       setIsLoading(false);
     }
+  };
+
+  const handleConfirmEvent = async () => {
+    if (!pendingEvent) return;
+    
+    setIsLoading(true);
+    const responseText = await addToCalendar(pendingEvent);
+    
+    // Add bot response to messages
+    const botResponse = {
+      id: Date.now().toString(),
+      text: responseText,
+      sender: 'bot',
+      timestamp: new Date()
+    };
+
+    try {
+      await sendMessage(chatId!, botResponse);
+    } catch (error) {
+      console.log("Error syncing messages with the server:", error);
+    }
+
+    setMessages(prev => [...prev, botResponse]);
+    setShowEventConfirmation(false);
+    setPendingEvent(null);
+    setIsLoading(false);
+  };
+
+  const handleCancelEvent = () => {
+    // Add bot response about cancellation
+    const botResponse = {
+      id: Date.now().toString(),
+      text: "I've cancelled adding that event to your calendar.",
+      sender: 'bot',
+      timestamp: new Date()
+    };
+    
+    try {
+      sendMessage(chatId!, botResponse);
+    } catch (error) {
+      console.log("Error syncing messages with the server:", error);
+    }
+
+    setMessages(prev => [...prev, botResponse]);
+    setShowEventConfirmation(false);
+    setPendingEvent(null);
   };
 
   const fadeOutWelcome = () => {
@@ -353,6 +404,14 @@ export default function Chat() {
           }}
         />
       </View>
+      {pendingEvent && (
+        <EventConfirmationModal
+          visible={showEventConfirmation}
+          eventDetails={pendingEvent}
+          onConfirm={handleConfirmEvent}
+          onCancel={handleCancelEvent}
+        />
+      )}
     </KeyboardAvoidingView>
   );
 }
