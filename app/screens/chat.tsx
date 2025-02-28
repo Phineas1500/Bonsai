@@ -9,6 +9,15 @@ import { useUser } from '@contexts/UserContext';
 import { createChat, getMessages, getUserChats, sendMessage } from '@components/utils/chatManagement';
 import { ChatMessage, MessageInput, WelcomeOverlay, Message, EventConfirmationModal } from '@components/chat';
 
+export interface EventConfirmationModalProps {
+  visible: boolean;
+  eventDetails: any;
+  onConfirm: () => void;
+  onCancel: () => void;
+  eventCount: number;
+  currentEventIndex: number;
+}
+
 export default function Chat() {
   const [message, setMessage] = useState('');
   const [messages, setMessages] = useState<Message[]>([]);
@@ -20,6 +29,8 @@ export default function Chat() {
   const welcomeOpacity = useRef(new Animated.Value(1)).current;
   const [showEventConfirmation, setShowEventConfirmation] = useState(false);
   const [pendingEvent, setPendingEvent] = useState<any>(null);
+  const [pendingEvents, setPendingEvents] = useState<any[]>([]);
+  const [currentEventIndex, setCurrentEventIndex] = useState(0);
 
   const scrollToBottom = () => {
     if (scrollViewRef.current) {
@@ -93,13 +104,14 @@ export default function Chat() {
       const sys_message = `You are a helpful assistant that can add events to a calendar and answer general questions.
 
               For calendar requests:
-              If a user is asking to add an event to their calendar, extract the time, title, and location in the user's local time zone (${Intl.DateTimeFormat().resolvedOptions().timeZone}) and respond with JSON in this format:
-              {"isCalendarEvent": true, "eventDetails": {"title": "Event title", "description": "Event description", "location": "Event location", "startTime": "ISO string with timezone offset", "endTime": "ISO string with timezone offset"}}
+              If a user is asking to add one or more events to their calendar, extract the details for each event in the user's local time zone (${Intl.DateTimeFormat().resolvedOptions().timeZone}) and respond with JSON in this format:
+              {"isCalendarEvent": true, "events": [{"title": "Event title", "description": "Event description", "location": "Event location", "startTime": "ISO string with timezone offset", "endTime": "ISO string with timezone offset"}, {...more events if mentioned...}]}
 
               Important:
               - When generating timestamps, include the timezone offset in the ISO strings and assume the user is referring to times in their local timezone (${Intl.DateTimeFormat().resolvedOptions().timeZone}).
               - If the user mentions a location (like "at Starbucks" or "in New York"), extract it to the location field. If no location is mentioned, set location to empty string.
               - Keep the title focused on the activity, not the location.
+              - If the user mentions multiple events in one message, return all of them in the "events" array.
 
               For all other requests:
               Provide a helpful, informative response to the user's question or comment.
@@ -171,7 +183,18 @@ export default function Chat() {
         // Remove markdown code formatting (```json and ```)
         aiResponse = aiResponse.replace(/```json\s*/g, '').replace(/```\s*$/g, '').trim();
         
-        return JSON.parse(aiResponse);
+        const parsedResponse = JSON.parse(aiResponse);
+        
+        // Handle backward compatibility with the old format (single event)
+        if (parsedResponse.isCalendarEvent && parsedResponse.eventDetails) {
+          // Convert old format to new format
+          return {
+            isCalendarEvent: true,
+            events: [parsedResponse.eventDetails]
+          };
+        }
+        
+        return parsedResponse;
       } catch (e) {
         console.error("Failed to parse OpenAI response:", aiResponse);
         return { isCalendarEvent: false, response: "I'm having trouble understanding that. Could you try again?" };
@@ -265,9 +288,10 @@ export default function Chat() {
       // Analyze message with OpenAI/Gemini
       const analysis = await analyzeWithOpenAI(message);
 
-      if (analysis.isCalendarEvent) {
-        // Store the event details and show confirmation
-        setPendingEvent(analysis.eventDetails);
+      if (analysis.isCalendarEvent && analysis.events && analysis.events.length > 0) {
+        // Store multiple events and show first confirmation
+        setPendingEvents(analysis.events);
+        setCurrentEventIndex(0);
         setShowEventConfirmation(true);
         setIsLoading(false);
       } else {
@@ -308,12 +332,13 @@ export default function Chat() {
   };
 
   const handleConfirmEvent = async () => {
-    if (!pendingEvent) return;
+    if (pendingEvents.length === 0 || currentEventIndex >= pendingEvents.length) return;
     
     setIsLoading(true);
-    const responseText = await addToCalendar(pendingEvent);
+    const currentEvent = pendingEvents[currentEventIndex];
+    const responseText = await addToCalendar(currentEvent);
     
-    // Add bot response to messages
+    // Add bot response about this event being added
     const botResponse = {
       id: Date.now().toString(),
       text: responseText,
@@ -328,16 +353,28 @@ export default function Chat() {
     }
 
     setMessages(prev => [...prev, botResponse]);
-    setShowEventConfirmation(false);
-    setPendingEvent(null);
+    
+    // Move to next event or finish
+    if (currentEventIndex < pendingEvents.length - 1) {
+      setCurrentEventIndex(currentEventIndex + 1);
+    } else {
+      // All events processed
+      setShowEventConfirmation(false);
+      setPendingEvents([]);
+      setCurrentEventIndex(0);
+    }
+    
     setIsLoading(false);
   };
 
   const handleCancelEvent = () => {
-    // Add bot response about cancellation
+    if (pendingEvents.length === 0 || currentEventIndex >= pendingEvents.length) return;
+    
+    // Add bot response about cancellation of the current event
+    const currentEvent = pendingEvents[currentEventIndex];
     const botResponse = {
       id: Date.now().toString(),
-      text: "I've cancelled adding that event to your calendar.",
+      text: `I've cancelled adding "${currentEvent.title}" to your calendar.`,
       sender: 'bot',
       timestamp: new Date()
     };
@@ -349,8 +386,16 @@ export default function Chat() {
     }
 
     setMessages(prev => [...prev, botResponse]);
-    setShowEventConfirmation(false);
-    setPendingEvent(null);
+    
+    // Move to next event or finish
+    if (currentEventIndex < pendingEvents.length - 1) {
+      setCurrentEventIndex(currentEventIndex + 1);
+    } else {
+      // All events processed or cancelled
+      setShowEventConfirmation(false);
+      setPendingEvents([]);
+      setCurrentEventIndex(0);
+    }
   };
 
   const fadeOutWelcome = () => {
@@ -405,12 +450,14 @@ export default function Chat() {
           }}
         />
       </View>
-      {pendingEvent && (
+      {pendingEvents.length > 0 && currentEventIndex < pendingEvents.length && (
         <EventConfirmationModal
           visible={showEventConfirmation}
-          eventDetails={pendingEvent}
+          eventDetails={pendingEvents[currentEventIndex]}
           onConfirm={handleConfirmEvent}
           onCancel={handleCancelEvent}
+          eventCount={pendingEvents.length}
+          currentEventIndex={currentEventIndex}
         />
       )}
     </KeyboardAvoidingView>

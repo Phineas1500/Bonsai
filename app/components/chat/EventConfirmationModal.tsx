@@ -2,7 +2,6 @@ import React from 'react';
 import { Modal, View, Text, TouchableOpacity } from 'react-native';
 import { format, parseISO } from 'date-fns';
 import { BlurView } from 'expo-blur';
-import GradientButton from '@components/GradientButton';
 import { Ionicons } from '@expo/vector-icons';
 
 interface EventDetails {
@@ -13,18 +12,23 @@ interface EventDetails {
   endTime: string;
 }
 
+// Match the interface defined in chat.tsx
 interface EventConfirmationModalProps {
   visible: boolean;
   eventDetails: EventDetails;
   onConfirm: () => void;
   onCancel: () => void;
+  eventCount: number;
+  currentEventIndex: number;
 }
 
 const EventConfirmationModal = ({
   visible,
   eventDetails,
   onConfirm,
-  onCancel
+  onCancel,
+  eventCount,
+  currentEventIndex
 }: EventConfirmationModalProps) => {
   const { title, description, location, startTime, endTime } = eventDetails;
   
@@ -54,6 +58,12 @@ const EventConfirmationModal = ({
                 <Ionicons name="close" size={24} color="#9CA3AF" />
               </TouchableOpacity>
             </View>
+            
+            {eventCount > 1 && (
+              <Text className="text-teal-500 mb-3">
+                Event {currentEventIndex + 1} of {eventCount}
+              </Text>
+            )}
             
             <View className="mb-4">
               <Text className="text-teal-500 font-semibold mb-1">Title:</Text>
@@ -85,11 +95,12 @@ const EventConfirmationModal = ({
             </View>
             
             <View className="flex-row justify-around mt-6">
-              <GradientButton
-                text="Add to Calendar"
+              <TouchableOpacity
                 onPress={onConfirm}
-                containerClassName="flex-1 mr-2"
-              />
+                className="flex-1 bg-teal-600 rounded-2xl py-3 mr-2 items-center justify-center"
+              >
+                <Text className="text-white font-semibold">Add to Calendar</Text>
+              </TouchableOpacity>
               <TouchableOpacity
                 onPress={onCancel}
                 className="flex-1 bg-stone-800 rounded-2xl py-3 ml-2 items-center justify-center"
