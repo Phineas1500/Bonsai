@@ -10,20 +10,9 @@
       "distribution": "internal"
     },
     "preview": {
-      "distribution": "internal",
-      "ios": {
-        "env": {
-          "GOOGLE_SERVICES_IOS": "googleServicesFileBase64"
-        }
-      }
+      "distribution": "internal"
     },
-    "production": {
-      "ios": {
-        "env": {
-          "GOOGLE_SERVICES_IOS": "googleServicesFileBase64"
-        }
-      }
-    }
+    "production": {}
   },
   "submit": {
     "production": {}

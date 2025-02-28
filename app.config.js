@@ -1,4 +1,4 @@
-module.exports = {
+export default {
   expo: {
     name: "Bonsai",
     slug: "Bonsai",
@@ -52,25 +52,6 @@ module.exports = {
         projectId: "03f3a0c7-d0ac-4a57-8ea2-691c69dee3d9"
       }
     },
-    owner: "bonsai-org",
-    hooks: {
-      preEASBuild: async (config) => {
-        if (process.env.GOOGLE_SERVICES_IOS) {
-          const fs = require('fs');
-          const path = require('path');
-          
-          // Ensure ios directory exists
-          if (!fs.existsSync(path.join(__dirname, 'ios'))) {
-            fs.mkdirSync(path.join(__dirname, 'ios'));
-          }
-          
-          // Write the file content
-          const fileContents = Buffer.from(process.env.GOOGLE_SERVICES_IOS, 'base64').toString('utf-8');
-          fs.writeFileSync(path.join(__dirname, 'ios', 'GoogleService-Info.plist'), fileContents);
-          console.log('✅ Created GoogleService-Info.plist from secret');
-        }
-        return config;
-      }
-    }
+    owner: "bonsai-org"
   }
 };
