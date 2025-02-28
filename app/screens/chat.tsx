@@ -39,14 +39,19 @@ export default function Chat() {
 
   // initialize chat
   const initializeChat = async () => {
-    const userEmail = userInfo?.email || "";
+    const userEmail = userInfo?.email;
+    if (!userEmail) {
+      console.error("Unable to get user email. Value:", userEmail);
+      console.log("User info:", userInfo);
+      return;
+    }
     const userChats = await getUserChats(userEmail);
 
     if (userChats.length <= 0) {
-
       //if the user doesn't have a chat, then create one
       const c = await createChat(userEmail);
       setChatId(c);
+      console.log("No chats found for user. Created chat with id: ", c);
 
       if (!chatId) {
         //TODO: handle showing error
@@ -65,6 +70,8 @@ export default function Chat() {
     } else {
       //if the user has a chat, then load messages from it
       const chatId = userChats[0].id;
+      console.log("All chats for user:", userChats);
+      console.log("Chat ID:", chatId);
       if (!chatId) {
         console.error("ChatId is null");
         return;
