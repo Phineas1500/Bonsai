@@ -8,6 +8,7 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 import { useUser } from '@contexts/UserContext';
 import { createChat, getMessages, getUserChats, sendMessage } from '@components/utils/chatManagement';
 import { ChatMessage, MessageInput, WelcomeOverlay, Message, EventConfirmationModal } from '@components/chat';
+import { useTasks } from '@contexts/TasksContext';
 
 export interface EventConfirmationModalProps {
   visible: boolean;
@@ -31,6 +32,7 @@ export default function Chat() {
   const [pendingEvent, setPendingEvent] = useState<any>(null);
   const [pendingEvents, setPendingEvents] = useState<any[]>([]);
   const [currentEventIndex, setCurrentEventIndex] = useState(0);
+  const { tasks, refreshTasks } = useTasks();
 
   const scrollToBottom = () => {
     if (scrollViewRef.current) {
@@ -107,6 +109,13 @@ export default function Chat() {
               If a user is asking to add one or more events to their calendar, extract the details for each event in the user's local time zone (${Intl.DateTimeFormat().resolvedOptions().timeZone}) and respond with JSON in this format:
               {"isCalendarEvent": true, "events": [{"title": "Event title", "description": "Event description", "location": "Event location", "startTime": "ISO string with timezone offset", "endTime": "ISO string with timezone offset"}, {...more events if mentioned...}]}
 
+              For PDF documents:
+              When processing PDF content, look for any calendar events, meetings, or scheduled activities. Extract all events from the PDF and format them as calendar events in the same JSON format. Be very thorough in examining the PDF content for any potential events.
+
+              For calendar summary requests:
+              If the user is asking about their schedule, agenda, upcoming events, or calendar (with phrases like "what's on my calendar", "what's my schedule", "show my events", "what do I have coming up", etc.), respond with:
+              {"isCalendarSummaryRequest": true}
+
               Important:
               - When generating timestamps, include the timezone offset in the ISO strings and assume the user is referring to times in their local timezone (${Intl.DateTimeFormat().resolvedOptions().timeZone}).
               - If the user mentions a location (like "at Starbucks" or "in New York"), extract it to the location field. If no location is mentioned, set location to empty string.
@@ -118,14 +127,14 @@ export default function Chat() {
               Format your response as:
 
               [AI_RESPONSE]
-              {"isCalendarEvent": false, "response": "Your actual helpful answer addressing the user's question goes here. Be thoughtful and informative."}
+              {"isCalendarEvent": false, "isCalendarSummaryRequest": false, "response": "Your actual helpful answer addressing the user's question goes here. Be thoughtful and informative."}
               [AI_RESPONSE]
 
               When determining dates and times, assume today is ${new Date().toDateString()} in time zone ${Intl.DateTimeFormat().resolvedOptions().timeZone}.
               Be forgiving with the user's formatting and extract the key details.
 
               Remember, keep your response as a valid JSON format. Do not prepend your response with backticks.`
-
+              
       // const response = await axios.post(
       //   'https://api.openai.com/v1/chat/completions',
       //   {
@@ -263,6 +272,55 @@ export default function Chat() {
     }
   };
 
+  // Function to format calendar events
+  const getCalendarSummary = async () => {
+    // Refresh the tasks to get the latest data
+    await refreshTasks();
+    
+    if (tasks.length === 0) {
+      return "You don't have any upcoming events on your calendar.";
+    }
+    
+    // Format the upcoming events in a nice message
+    let summaryText = "Here's your upcoming schedule:\n\n";
+    
+    // Group events by date
+    const eventsByDate = tasks.reduce((acc, task) => {
+      const date = format(parseISO(task.startTime), 'EEEE, MMMM d');
+      if (!acc[date]) {
+        acc[date] = [];
+      }
+      acc[date].push(task);
+      return acc;
+    }, {} as Record<string, typeof tasks>);
+    
+    // Format each date's events
+    Object.entries(eventsByDate).forEach(([date, dateEvents], index) => {
+      if (index > 0) summaryText += "\n";
+      summaryText += `${date}:\n`;
+      
+      dateEvents.forEach(event => {
+        const startTime = format(parseISO(event.startTime), 'h:mm a');
+        const endTime = format(parseISO(event.endTime), 'h:mm a');
+        summaryText += `• ${startTime} - ${endTime}: ${event.title}`;
+        
+        // Use optional chaining and check if location exists and is not empty
+        if (event.location && typeof event.location === 'string' && event.location.trim() !== '') {
+          summaryText += ` (at ${event.location})`;
+        }
+        
+        summaryText += "\n";
+      });
+    });
+    
+    // Limit to showing at most 10 events
+    if (tasks.length > 10) {
+      summaryText += `\n...and ${tasks.length - 10} more events.`;
+    }
+    
+    return summaryText;
+  };
+
   // Handle sending a message
   const handleSend = async () => {
     if (!message.trim() || !chatId) return;
@@ -284,6 +342,7 @@ export default function Chat() {
     setMessage('');
     setIsLoading(true);
 
+    // Update the try block in the handleSend function
     try {
       // Analyze message with OpenAI/Gemini
       const analysis = await analyzeWithOpenAI(message);
@@ -293,6 +352,27 @@ export default function Chat() {
         setPendingEvents(analysis.events);
         setCurrentEventIndex(0);
         setShowEventConfirmation(true);
+        setIsLoading(false);
+      } 
+      else if (analysis.isCalendarSummaryRequest) {
+        // Generate calendar summary
+        const summaryText = await getCalendarSummary();
+        
+        // Add bot response to messages
+        const botResponse = {
+          id: (Date.now() + 1).toString(),
+          text: summaryText,
+          sender: 'bot' as const,
+          timestamp: new Date()
+        };
+
+        try {
+          await sendMessage(chatId, botResponse);
+        } catch (error) {
+          console.log("Error syncing messages with the server:", error);
+        }
+
+        setMessages(prev => [...prev, botResponse]);
         setIsLoading(false);
       } else {
         // Normal conversation flow
@@ -408,6 +488,94 @@ export default function Chat() {
     }
   };
 
+  // Add this new function to handle PDF selection
+  const handlePdfSelected = async (pdfText: string, filename: string) => {
+    if (!chatId) return;
+    
+    setIsLoading(true);
+    
+    // Create a message to show the user what PDF was uploaded
+    const userMessage = {
+      id: Date.now().toString(),
+      text: `📄 Uploaded PDF: ${filename}`,
+      sender: userInfo?.email || "",
+      timestamp: new Date(),
+    };
+
+    try {
+      await sendMessage(chatId, userMessage);
+    } catch (error) {
+      console.log("Error sending message:", error);
+    }
+
+    setMessages(prev => [...prev, userMessage]);
+    
+    try {
+      // Analyze the PDF content with AI
+      const analysis = await analyzeWithOpenAI(pdfText);
+
+      if (analysis.isCalendarEvent && analysis.events && analysis.events.length > 0) {
+        // Store multiple events and show first confirmation
+        setPendingEvents(analysis.events);
+        setCurrentEventIndex(0);
+        setShowEventConfirmation(true);
+      } 
+      else if (analysis.isCalendarSummaryRequest) {
+        // Generate calendar summary
+        const summaryText = await getCalendarSummary();
+        
+        // Add bot response to messages
+        const botResponse = {
+          id: (Date.now() + 1).toString(),
+          text: summaryText,
+          sender: 'bot',
+          timestamp: new Date()
+        };
+
+        try {
+          await sendMessage(chatId, botResponse);
+        } catch (error) {
+          console.log("Error syncing messages with the server:", error);
+        }
+
+        setMessages(prev => [...prev, botResponse]);
+      } else {
+        // Normal conversation flow
+        const responseText = analysis.response;
+        
+        // Add bot response to messages
+        const botResponse = {
+          id: (Date.now() + 1).toString(),
+          text: responseText,
+          sender: 'bot',
+          timestamp: new Date()
+        };
+
+        try {
+          await sendMessage(chatId, botResponse);
+        } catch (error) {
+          console.log("Error syncing messages with the server:", error);
+        }
+
+        setMessages(prev => [...prev, botResponse]);
+      }
+    } catch (error) {
+      console.error("Error processing PDF:", error);
+      
+      // Add error message
+      const errorMessage = {
+        id: (Date.now() + 1).toString(),
+        text: "Sorry, I encountered an error processing your PDF.",
+        sender: 'bot',
+        timestamp: new Date()
+      };
+
+      setMessages(prev => [...prev, errorMessage]);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   return (
     <KeyboardAvoidingView
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -443,6 +611,7 @@ export default function Chat() {
           value={message}
           onChangeText={setMessage}
           onSend={handleSend}
+          onPdfSelected={handlePdfSelected}
           disabled={isLoading || !message.trim()}
           onFocus={() => {
             fadeOutWelcome();

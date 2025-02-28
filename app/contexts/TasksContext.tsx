@@ -8,6 +8,7 @@ export interface TaskItemData {
   description: string;
   startTime: string;
   endTime: string;
+  location?: string; // Add optional location property
 }
 
 interface TasksContextType {
