@@ -30,7 +30,7 @@ const MessageInput = ({
           <View className="flex-row items-center px-2">
             <PdfUploader 
               onPdfSelected={onPdfSelected} 
-              disabled={disabled}
+              disabled={false}
             />
           </View>
           <TextInput
