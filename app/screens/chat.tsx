@@ -56,7 +56,7 @@ export default function Chat() {
   const initializeChat = async () => {
     const userEmail = userInfo?.email;
     if (!userEmail) {
-      console.error("Unable to get user email. Value:", userEmail);
+      // console.error("Unable to get user email. Value:", userEmail);
       console.log("User info:", userInfo);
       return;
     }

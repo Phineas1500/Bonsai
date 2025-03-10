@@ -12,7 +12,7 @@ export default function Navbar() {
 
     const toggleDropdown = () => {
         Animated.timing(dropdownHeight, {
-            toValue: isOpen ? 0 : 150,
+            toValue: isOpen ? 0 : 200,
             duration: 300,
             useNativeDriver: false,
         }).start();
@@ -72,6 +72,14 @@ export default function Navbar() {
                         <Feather name="home" size={20} color={"#14b8a6"} style={{marginRight: 8}} />
                         <Text className="text-white text-lg">Home</Text>
                     </TouchableOpacity>
+                    
+                    <TouchableOpacity
+                        className="flex-row items-center mb-2"
+                        onPress={() => {toggleDropdown(), router.push('/screens/profile')}}
+                    >
+                        <Feather name="user" size={20} color={"#14b8a6"} style={{marginRight: 8}} />
+                        <Text className="text-white text-lg">Profile</Text>
+                    </TouchableOpacity>
 
                     <TouchableOpacity
                         className="flex-row items-center mb-2"
@@ -83,10 +91,10 @@ export default function Navbar() {
 
                     <TouchableOpacity
                         className="flex-row items-center mb-2"
-                        onPress={() => {toggleDropdown(), router.push('/screens/profile')}}
+                        onPress={() => {toggleDropdown(), router.push('/screens/social')}}
                     >
-                        <Feather name="user" size={20} color={"#14b8a6"} style={{marginRight: 8}} />
-                        <Text className="text-white text-lg">Profile</Text>
+                        <Feather name="users" size={20} color={"#14b8a6"} style={{marginRight: 8}} />
+                        <Text className="text-white text-lg">Social</Text>
                     </TouchableOpacity>
 
                     <TouchableOpacity
