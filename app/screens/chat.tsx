@@ -10,15 +10,6 @@ import { createChat, getMessages, getUserChats, sendMessage } from '@components/
 import { ChatMessage, MessageInput, WelcomeOverlay, Message, EventConfirmationModal } from '@components/chat';
 import { useTasks } from '@contexts/TasksContext';
 
-export interface EventConfirmationModalProps {
-  visible: boolean;
-  eventDetails: any;
-  onConfirm: () => void;
-  onCancel: () => void;
-  eventCount: number;
-  currentEventIndex: number;
-}
-
 export default function Chat() {
   const [message, setMessage] = useState('');
   const [messages, setMessages] = useState<Message[]>([]);
@@ -134,7 +125,7 @@ export default function Chat() {
               Be forgiving with the user's formatting and extract the key details.
 
               Remember, keep your response as a valid JSON format. Do not prepend your response with backticks.`
-              
+
       // const response = await axios.post(
       //   'https://api.openai.com/v1/chat/completions',
       //   {
@@ -188,12 +179,12 @@ export default function Chat() {
       try {
         // Remove AI_RESPONSE tags if present
         aiResponse = aiResponse.replace(/\[AI_RESPONSE\]/g, '').trim();
-        
+
         // Remove markdown code formatting (```json and ```)
         aiResponse = aiResponse.replace(/```json\s*/g, '').replace(/```\s*$/g, '').trim();
-        
+
         const parsedResponse = JSON.parse(aiResponse);
-        
+
         // Handle backward compatibility with the old format (single event)
         if (parsedResponse.isCalendarEvent && parsedResponse.eventDetails) {
           // Convert old format to new format
@@ -202,7 +193,7 @@ export default function Chat() {
             events: [parsedResponse.eventDetails]
           };
         }
-        
+
         return parsedResponse;
       } catch (e) {
         console.error("Failed to parse OpenAI response:", aiResponse);
@@ -276,14 +267,14 @@ export default function Chat() {
   const getCalendarSummary = async () => {
     // Refresh the tasks to get the latest data
     await refreshTasks();
-    
+
     if (tasks.length === 0) {
       return "You don't have any upcoming events on your calendar.";
     }
-    
+
     // Format the upcoming events in a nice message
     let summaryText = "Here's your upcoming schedule:\n\n";
-    
+
     // Group events by date
     const eventsByDate = tasks.reduce((acc, task) => {
       const date = format(parseISO(task.startTime), 'EEEE, MMMM d');
@@ -293,31 +284,31 @@ export default function Chat() {
       acc[date].push(task);
       return acc;
     }, {} as Record<string, typeof tasks>);
-    
+
     // Format each date's events
     Object.entries(eventsByDate).forEach(([date, dateEvents], index) => {
       if (index > 0) summaryText += "\n";
       summaryText += `${date}:\n`;
-      
+
       dateEvents.forEach(event => {
         const startTime = format(parseISO(event.startTime), 'h:mm a');
         const endTime = format(parseISO(event.endTime), 'h:mm a');
         summaryText += `• ${startTime} - ${endTime}: ${event.title}`;
-        
+
         // Use optional chaining and check if location exists and is not empty
         if (event.location && typeof event.location === 'string' && event.location.trim() !== '') {
           summaryText += ` (at ${event.location})`;
         }
-        
+
         summaryText += "\n";
       });
     });
-    
+
     // Limit to showing at most 10 events
     if (tasks.length > 10) {
       summaryText += `\n...and ${tasks.length - 10} more events.`;
     }
-    
+
     return summaryText;
   };
 
@@ -353,11 +344,11 @@ export default function Chat() {
         setCurrentEventIndex(0);
         setShowEventConfirmation(true);
         setIsLoading(false);
-      } 
+      }
       else if (analysis.isCalendarSummaryRequest) {
         // Generate calendar summary
         const summaryText = await getCalendarSummary();
-        
+
         // Add bot response to messages
         const botResponse = {
           id: (Date.now() + 1).toString(),
@@ -377,7 +368,7 @@ export default function Chat() {
       } else {
         // Normal conversation flow
         const responseText = analysis.response;
-        
+
         // Add bot response to messages
         const botResponse = {
           id: (Date.now() + 1).toString(),
@@ -397,7 +388,7 @@ export default function Chat() {
       }
     } catch (error) {
       console.error("Error processing message:", error);
-      
+
       // Add error message
       const errorMessage = {
         id: (Date.now() + 1).toString(),
@@ -413,11 +404,11 @@ export default function Chat() {
 
   const handleConfirmEvent = async () => {
     if (pendingEvents.length === 0 || currentEventIndex >= pendingEvents.length) return;
-    
+
     setIsLoading(true);
     const currentEvent = pendingEvents[currentEventIndex];
     const responseText = await addToCalendar(currentEvent);
-    
+
     // Add bot response about this event being added
     const botResponse = {
       id: Date.now().toString(),
@@ -433,7 +424,7 @@ export default function Chat() {
     }
 
     setMessages(prev => [...prev, botResponse]);
-    
+
     // Move to next event or finish
     if (currentEventIndex < pendingEvents.length - 1) {
       setCurrentEventIndex(currentEventIndex + 1);
@@ -443,13 +434,13 @@ export default function Chat() {
       setPendingEvents([]);
       setCurrentEventIndex(0);
     }
-    
+
     setIsLoading(false);
   };
 
   const handleCancelEvent = () => {
     if (pendingEvents.length === 0 || currentEventIndex >= pendingEvents.length) return;
-    
+
     // Add bot response about cancellation of the current event
     const currentEvent = pendingEvents[currentEventIndex];
     const botResponse = {
@@ -458,7 +449,7 @@ export default function Chat() {
       sender: 'bot',
       timestamp: new Date()
     };
-    
+
     try {
       sendMessage(chatId!, botResponse);
     } catch (error) {
@@ -466,7 +457,7 @@ export default function Chat() {
     }
 
     setMessages(prev => [...prev, botResponse]);
-    
+
     // Move to next event or finish
     if (currentEventIndex < pendingEvents.length - 1) {
       setCurrentEventIndex(currentEventIndex + 1);
@@ -491,9 +482,9 @@ export default function Chat() {
   // Add this new function to handle PDF selection
   const handlePdfSelected = async (pdfText: string, filename: string) => {
     if (!chatId) return;
-    
+
     setIsLoading(true);
-    
+
     // Create a message to show the user what PDF was uploaded
     const userMessage = {
       id: Date.now().toString(),
@@ -509,7 +500,7 @@ export default function Chat() {
     }
 
     setMessages(prev => [...prev, userMessage]);
-    
+
     try {
       // Analyze the PDF content with AI
       const analysis = await analyzeWithOpenAI(pdfText);
@@ -519,11 +510,11 @@ export default function Chat() {
         setPendingEvents(analysis.events);
         setCurrentEventIndex(0);
         setShowEventConfirmation(true);
-      } 
+      }
       else if (analysis.isCalendarSummaryRequest) {
         // Generate calendar summary
         const summaryText = await getCalendarSummary();
-        
+
         // Add bot response to messages
         const botResponse = {
           id: (Date.now() + 1).toString(),
@@ -542,7 +533,7 @@ export default function Chat() {
       } else {
         // Normal conversation flow
         const responseText = analysis.response;
-        
+
         // Add bot response to messages
         const botResponse = {
           id: (Date.now() + 1).toString(),
@@ -561,7 +552,7 @@ export default function Chat() {
       }
     } catch (error) {
       console.error("Error processing PDF:", error);
-      
+
       // Add error message
       const errorMessage = {
         id: (Date.now() + 1).toString(),
