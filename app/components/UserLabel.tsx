@@ -4,18 +4,20 @@ interface UserLabelProps {
   onPress?: () => void;
   username: string;
   disabled?: boolean;
+  classStyle?: string;
 }
 
 export default function UserLabel({
   onPress,
   username,
-  disabled = false
+  disabled = false,
+  classStyle
 }: UserLabelProps) {
   return (
     <TouchableOpacity
       onPress={onPress}
       activeOpacity={0.8}
-      className="bg-[#1D1D1D] h-14 w-full rounded-2xl justify-center"
+      className={`bg-[#1D1D1D] h-14 w-full rounded-2xl justify-center ${classStyle}`}
       disabled={disabled}
     >
       <View className="flex-row items-center mx-4">

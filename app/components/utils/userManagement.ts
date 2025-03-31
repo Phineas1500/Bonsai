@@ -134,3 +134,9 @@ export const deleteUserAccount = async () => {
     throw new Error('Error getting user');
   }
 };
+
+export const getAllUsernames = async () => {
+  const querySnapshot = await getDocs(collection(db, "users"));
+  const usernames = querySnapshot.docs.map((doc) => doc.data().username);
+  return usernames;
+};
