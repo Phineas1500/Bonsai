@@ -35,7 +35,12 @@ export default function Chat() {
 
   //initialize chat
   useEffect(() => {
-    initializeChat();
+    const loadData = async () => {
+      await refreshTasks(); // Make sure schedule data is fresh
+      await initializeChat();
+    };
+    
+    loadData();
   }, []);
 
   // Scroll to bottom when new messages arrive
@@ -92,16 +97,31 @@ export default function Chat() {
   // Function to analyze message with OpenAI
   const analyzeWithOpenAI = async (userMessage: string) => {
     try {
-      // const OPENAI_API_KEY = process.env.EXPO_PUBLIC_OPENAI_API_KEY;
-
+      // Format schedule data for context
+      const scheduleContext = formatScheduleForContext();
+      
       const sys_message = `You are a helpful assistant that can add events to a calendar and answer general questions.
 
+              USER'S CURRENT SCHEDULE:
+              ${scheduleContext}
+              
+              IMPORTANT TIMEZONE INSTRUCTIONS:
+              - The user's timezone is: ${Intl.DateTimeFormat().resolvedOptions().timeZone}
+              - All dates and times in the schedule data include both ISO format and human-readable format
+              - When answering questions about times, ALWAYS use the human-readable times (in "readable" fields) which are already in the user's local timezone
+              - Never show UTC times to the user, only show times in their local timezone
+              
+              When answering questions about the user's schedule, use the above schedule information to provide accurate answers.
+              Be specific with dates and times from the schedule when responding to questions like:
+              - When is my next meeting?
+              - What's on my calendar today?
+              - Do I have time for lunch tomorrow?
+              - What are my high priority tasks?
+              - When is my [specific event] scheduled?
+              
               For calendar requests:
               If a user is asking to add one or more events to their calendar, extract the details for each event in the user's local time zone (${Intl.DateTimeFormat().resolvedOptions().timeZone}) and respond with JSON in this format:
               {"isCalendarEvent": true, "events": [{"title": "Event title", "description": "Event description", "location": "Event location", "startTime": "ISO string with timezone offset", "endTime": "ISO string with timezone offset"}, {...more events if mentioned...}]}
-
-              For PDF documents:
-              When processing PDF content, look for any calendar events, meetings, or scheduled activities. Extract all events from the PDF and format them as calendar events in the same JSON format. Be very thorough in examining the PDF content for any potential events.
 
               For calendar summary requests:
               If the user is asking about their schedule, agenda, upcoming events, or calendar (with phrases like "what's on my calendar", "what's my schedule", "show my events", "what do I have coming up", etc.), respond with:
@@ -125,32 +145,6 @@ export default function Chat() {
               Be forgiving with the user's formatting and extract the key details.
 
               Remember, keep your response as a valid JSON format. Do not prepend your response with backticks.`
-
-      // const response = await axios.post(
-      //   'https://api.openai.com/v1/chat/completions',
-      //   {
-      //     model: "gpt-3.5-turbo",
-      //     messages: [
-      //       {
-      //         role: "system",
-      //         content: sys_message
-      //       },
-      //       {
-      //         role: "user",
-      //         content: userMessage
-      //       }
-      //     ],
-      //     temperature: 0.2,
-      //   },
-      //   {
-      //     headers: {
-      //       'Content-Type': 'application/json',
-      //       'Authorization': `Bearer ${OPENAI_API_KEY}`
-      //     }
-      //   }
-      // );
-
-      // const aiResponse = response.data.choices[0].message.content;
 
       const GEMINI_API_KEY = process.env.EXPO_PUBLIC_GEMINI_API_KEY;
       if (!GEMINI_API_KEY) {
@@ -215,6 +209,65 @@ export default function Chat() {
     // Otherwise, interpret as local time and add timezone info
     const date = new Date(isoString);
     return date.toISOString();
+  };
+
+  // Update the formatScheduleForContext function to include human-readable dates
+  const formatScheduleForContext = () => {
+    if (tasks.length === 0) {
+      return "You have no upcoming events or tasks scheduled.";
+    }
+
+    // Sort tasks by start time
+    const sortedTasks = [...tasks].sort((a, b) => 
+      new Date(a.startTime).getTime() - new Date(b.startTime).getTime()
+    );
+    
+    // Group by type and date for clearer structure
+    const today = new Date();
+    const todayStr = today.toISOString().split('T')[0];
+    const tomorrowStr = new Date(today.setDate(today.getDate() + 1)).toISOString().split('T')[0];
+    
+    const events = sortedTasks.filter(task => !task.isTask);
+    const taskItems = sortedTasks.filter(task => task.isTask);
+    
+    // Format date/time in user's timezone
+    const formatLocalDateTime = (isoString: string) => {
+      const date = new Date(isoString);
+      return {
+        iso: isoString,
+        readable: {
+          date: format(date, 'MMMM d, yyyy'),
+          time: format(date, 'h:mm a'),
+          full: format(date, 'MMMM d, yyyy h:mm a')
+        }
+      };
+    };
+    
+    const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    
+    let contextData = {
+      timeZone: timeZone,
+      events: events.map(event => ({
+        title: event.title,
+        description: event.description || "",
+        location: event.location || "",
+        startTime: formatLocalDateTime(event.startTime),
+        endTime: formatLocalDateTime(event.endTime),
+        isToday: event.startTime.startsWith(todayStr),
+        isTomorrow: event.startTime.startsWith(tomorrowStr),
+        priority: event.priority
+      })),
+      tasks: taskItems.map(task => ({
+        title: task.title,
+        description: task.description || "",
+        dueDate: formatLocalDateTime(task.endTime),
+        isToday: task.endTime.startsWith(todayStr), 
+        isTomorrow: task.endTime.startsWith(tomorrowStr),
+        priority: task.priority
+      }))
+    };
+    
+    return JSON.stringify(contextData, null, 2);
   };
 
   // Function to add event to Google Calendar
@@ -285,6 +338,11 @@ export default function Chat() {
       return acc;
     }, {} as Record<string, typeof tasks>);
 
+    // Sort tasks by priority within each date
+    Object.keys(eventsByDate).forEach(date => {
+      eventsByDate[date].sort((a, b) => b.priority - a.priority);
+    });
+
     // Format each date's events
     Object.entries(eventsByDate).forEach(([date, dateEvents], index) => {
       if (index > 0) summaryText += "\n";
@@ -293,9 +351,11 @@ export default function Chat() {
       dateEvents.forEach(event => {
         const startTime = format(parseISO(event.startTime), 'h:mm a');
         const endTime = format(parseISO(event.endTime), 'h:mm a');
-        summaryText += `• ${startTime} - ${endTime}: ${event.title}`;
+        const priorityIndicator = event.priority >= 8 ? "⚠️ " : 
+                                 event.priority >= 6 ? "⚡ " : "";
+        
+        summaryText += `• ${priorityIndicator}${startTime} - ${endTime}: ${event.title}`;
 
-        // Use optional chaining and check if location exists and is not empty
         if (event.location && typeof event.location === 'string' && event.location.trim() !== '') {
           summaryText += ` (at ${event.location})`;
         }
@@ -303,11 +363,6 @@ export default function Chat() {
         summaryText += "\n";
       });
     });
-
-    // Limit to showing at most 10 events
-    if (tasks.length > 10) {
-      summaryText += `\n...and ${tasks.length - 10} more events.`;
-    }
 
     return summaryText;
   };
