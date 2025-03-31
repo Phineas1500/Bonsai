@@ -178,19 +178,31 @@ export function TasksProvider({ children }: { children: ReactNode }) {
 
       // Convert Google Tasks to our TaskItemData format
       const tasksList = tasksResponse.data.items.map((item: any) => {
-        // Calculate priority for tasks (you might want to adjust this)
         let priority = 5; // Default medium priority
         
-        // Set due date as end time, or use current time + 1 hour if not specified
-        const endTime = item.due ? new Date(item.due) : new Date(Date.now() + 3600000);
-        // Set start time to same day but 1 hour before due time
-        const startTime = new Date(endTime.getTime() - 3600000);
+        // Fix the date handling for due dates
+        let endTime: Date;
+        let startTime: Date;
+        
+        if (item.due) {
+          // Parse the date parts manually to ensure correct local date
+          const [year, month, day] = item.due.split('T')[0].split('-').map(Number);
+          
+          // Create date at 23:59:59 on the due date in local timezone
+          endTime = new Date(year, month - 1, day, 23, 59, 59);
+          
+          // Set start time to same day at 9:00 AM as a reasonable default
+          startTime = new Date(year, month - 1, day, 9, 0, 0);
+        } else {
+          // No due date, set defaults
+          endTime = new Date(Date.now() + 3600000);
+          startTime = new Date(Date.now());
+        }
         
         // Prioritize tasks with due dates
         if (item.due) {
-          const dueDate = new Date(item.due);
           const now = new Date();
-          const hoursUntilDue = (dueDate.getTime() - now.getTime()) / (1000 * 60 * 60);
+          const hoursUntilDue = (endTime.getTime() - now.getTime()) / (1000 * 60 * 60);
           
           if (hoursUntilDue <= 24) priority += 2;
           else if (hoursUntilDue <= 48) priority += 1;
