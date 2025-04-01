@@ -1,6 +1,7 @@
 import { db } from 'firebaseConfig';
-import { doc, getDoc, setDoc, query, collection, where, getDocs, updateDoc, deleteDoc } from 'firebase/firestore';
-import { getAuth, updateProfile } from 'firebase/auth';
+import { doc, getDoc, setDoc, query, collection, where, getDocs, updateDoc, deleteDoc, arrayUnion, arrayRemove } from 'firebase/firestore';
+import { updateProfile } from 'firebase/auth';
+import { auth } from 'firebaseConfig';
 import { deleteChat } from '@components/utils/chatManagement';
 
 export const createUserDocument = async (email: string, username: string, signinType: string) => {
@@ -14,6 +15,9 @@ export const createUserDocument = async (email: string, username: string, signin
       username,
       createdAt: new Date().toISOString(),
       signinType,
+      friends: [],
+      incomingFriendRequests: [],
+      outgoingFriendRequests: []
     });
     console.log('User document created:', email);
   }
@@ -31,7 +35,6 @@ export const getUserByEmail = async (email: string) => {
     data: () => userDoc.data()
   };
 };
-
 
 export const getUserByUsername = async (username: string) => {
   const q = query(collection(db, 'users'), where('username', '==', username));
@@ -62,7 +65,7 @@ export const validateSignInMethod = async (email: string, attemptedMethod: strin
 };
 
 export const changeUsername = async (currentUsername: string, newUsername: string) => {
-  const auth = getAuth();
+
   const user = auth.currentUser;
   var errMessage = '';
 
@@ -106,7 +109,7 @@ export const changeUsername = async (currentUsername: string, newUsername: strin
 };
 
 export const deleteUserAccount = async () => {
-  const auth = getAuth();
+
   const user = auth.currentUser;
   if (user) {
     // delete all associated data in db
@@ -139,4 +142,318 @@ export const getAllUsernames = async () => {
   const querySnapshot = await getDocs(collection(db, "users"));
   const usernames = querySnapshot.docs.map((doc) => doc.data().username);
   return usernames;
+};
+
+
+/////////////////////////////// Friend management functions ///////////////////////////////////////
+
+/**
+ * Send a friend request from current user to another user
+ */
+export const sendFriendRequest = async (toUserEmail: string) => {
+  try {
+
+    const currentUser = auth.currentUser;
+
+    if (!currentUser?.email) {
+      throw new Error("You must be logged in to send friend requests");
+    }
+
+    const fromUserEmail = currentUser.email.toLowerCase();
+    const sanitizedToEmail = toUserEmail.toLowerCase();
+
+    // Ensure both users have friend arrays
+    await ensureFriendArrays(fromUserEmail);
+    await ensureFriendArrays(sanitizedToEmail);
+
+    // Check if users aren't already friends or have pending requests
+    const fromUser = await getUserByEmail(fromUserEmail);
+    if (!fromUser) throw new Error("Current user not found");
+
+    const fromUserData = fromUser.data();
+    const friends = fromUserData.friends || [];
+    const outgoing = fromUserData.outgoingFriendRequests || [];
+
+    if (friends.includes(sanitizedToEmail)) {
+      return { success: false, error: "You are already friends with this user" };
+    }
+
+    if (outgoing.includes(sanitizedToEmail)) {
+      return { success: false, error: "You already sent a request to this user" };
+    }
+
+    // Add to current user's outgoing requests
+    await updateDoc(doc(db, "users", fromUserEmail), {
+      outgoingFriendRequests: arrayUnion(sanitizedToEmail)
+    });
+
+    // Add to recipient's incoming requests
+    await updateDoc(doc(db, "users", sanitizedToEmail), {
+      incomingFriendRequests: arrayUnion(fromUserEmail)
+    });
+
+    return { success: true, error: "" };
+  } catch (error: any) {
+    console.error("Error sending friend request:", error);
+    return { success: false, error: error.message || "Failed to send friend request" };
+  }
+};
+
+/**
+ * Accept a friend request
+ */
+export const acceptFriendRequest = async (fromUserEmail: string) => {
+  try {
+
+    const currentUser = auth.currentUser;
+
+    if (!currentUser?.email) {
+      throw new Error("You must be logged in to accept friend requests");
+    }
+
+    const toUserEmail = currentUser.email.toLowerCase();
+    const sanitizedFromEmail = fromUserEmail.toLowerCase();
+
+    // Ensure both users have friend arrays
+    await ensureFriendArrays(toUserEmail);
+    await ensureFriendArrays(sanitizedFromEmail);
+
+    // Remove from incoming requests
+    await updateDoc(doc(db, "users", toUserEmail), {
+      incomingFriendRequests: arrayRemove(sanitizedFromEmail),
+      friends: arrayUnion(sanitizedFromEmail)
+    });
+
+    // Remove from sender's outgoing and add to friends
+    await updateDoc(doc(db, "users", sanitizedFromEmail), {
+      outgoingFriendRequests: arrayRemove(toUserEmail),
+      friends: arrayUnion(toUserEmail)
+    });
+
+    return { success: true, error: "" };
+  } catch (error: any) {
+    console.error("Error accepting friend request:", error);
+    return { success: false, error: error.message || "Failed to accept friend request" };
+  }
+};
+
+/**
+ * Reject a friend request
+ */
+export const rejectFriendRequest = async (fromUserEmail: string) => {
+  try {
+
+    const currentUser = auth.currentUser;
+
+    if (!currentUser?.email) {
+      throw new Error("You must be logged in to reject friend requests");
+    }
+
+    const toUserEmail = currentUser.email.toLowerCase();
+    const sanitizedFromEmail = fromUserEmail.toLowerCase();
+
+    // Ensure both users have friend arrays
+    await ensureFriendArrays(toUserEmail);
+    await ensureFriendArrays(sanitizedFromEmail);
+
+    // Remove from incoming requests
+    await updateDoc(doc(db, "users", toUserEmail), {
+      incomingFriendRequests: arrayRemove(sanitizedFromEmail)
+    });
+
+    // Remove from sender's outgoing
+    await updateDoc(doc(db, "users", sanitizedFromEmail), {
+      outgoingFriendRequests: arrayRemove(toUserEmail)
+    });
+
+    return { success: true, error: "" };
+  } catch (error: any) {
+    console.error("Error rejecting friend request:", error);
+    return { success: false, error: error.message || "Failed to reject friend request" };
+  }
+};
+
+/**
+ * Remove a friend
+ */
+export const removeFriend = async (friendEmail: string) => {
+  try {
+
+    const currentUser = auth.currentUser;
+
+    if (!currentUser?.email) {
+      throw new Error("You must be logged in to remove friends");
+    }
+
+    const userEmail = currentUser.email.toLowerCase();
+    const sanitizedFriendEmail = friendEmail.toLowerCase();
+
+    // Ensure both users have friend arrays
+    await ensureFriendArrays(userEmail);
+    await ensureFriendArrays(sanitizedFriendEmail);
+
+    // Remove from both users' friends lists
+    await updateDoc(doc(db, "users", userEmail), {
+      friends: arrayRemove(sanitizedFriendEmail)
+    });
+
+    await updateDoc(doc(db, "users", sanitizedFriendEmail), {
+      friends: arrayRemove(userEmail)
+    });
+
+    return { success: true, error: "" };
+  } catch (error: any) {
+    console.error("Error removing friend:", error);
+    return { success: false, error: error.message || "Failed to remove friend" };
+  }
+};
+
+/**
+ * Cancel an outgoing friend request
+ */
+export const cancelFriendRequest = async (toUserEmail: string) => {
+  try {
+
+    const currentUser = auth.currentUser;
+
+    if (!currentUser?.email) {
+      throw new Error("You must be logged in to cancel friend requests");
+    }
+
+    const fromUserEmail = currentUser.email.toLowerCase();
+    const sanitizedToEmail = toUserEmail.toLowerCase();
+
+    // Ensure both users have friend arrays
+    await ensureFriendArrays(fromUserEmail);
+    await ensureFriendArrays(sanitizedToEmail);
+
+    // Remove from current user's outgoing
+    await updateDoc(doc(db, "users", fromUserEmail), {
+      outgoingFriendRequests: arrayRemove(sanitizedToEmail)
+    });
+
+    // Remove from recipient's incoming
+    await updateDoc(doc(db, "users", sanitizedToEmail), {
+      incomingFriendRequests: arrayRemove(fromUserEmail)
+    });
+
+    return { success: true, error: "" };
+  } catch (error: any) {
+    console.error("Error canceling friend request:", error);
+    return { success: false, error: error.message || "Failed to cancel friend request" };
+  }
+};
+
+/**
+ * Check friendship status between current user and another user
+ * Returns: 'none', 'friends', 'incoming', 'outgoing'
+ */
+export const getFriendshipStatus = async (otherUserEmail: string) => {
+  try {
+
+    const currentUser = auth.currentUser;
+
+    if (!currentUser?.email) {
+      throw new Error("You must be logged in to check friendship status");
+    }
+
+    const userEmail = currentUser.email.toLowerCase();
+    const sanitizedOtherEmail = otherUserEmail.toLowerCase();
+
+    // Ensure both users have friend arrays
+    await ensureFriendArrays(userEmail);
+    await ensureFriendArrays(sanitizedOtherEmail);
+
+    const userDoc = await getUserByEmail(userEmail);
+    if (!userDoc) throw new Error("Current user not found");
+
+    const userData = userDoc.data();
+    const friends = userData.friends || [];
+    const outgoing = userData.outgoingFriendRequests || [];
+    const incoming = userData.incomingFriendRequests || [];
+
+    if (friends.includes(sanitizedOtherEmail)) {
+      return { status: 'friends', error: "" };
+    }
+
+    if (outgoing.includes(sanitizedOtherEmail)) {
+      return { status: 'outgoing', error: "" };
+    }
+
+    if (incoming.includes(sanitizedOtherEmail)) {
+      return { status: 'incoming', error: "" };
+    }
+
+    return { status: 'none', error: "" };
+  } catch (error: any) {
+    console.error("Error checking friendship status:", error);
+    return { status: 'error', error: error.message || "Failed to check friendship status" };
+  }
+};
+
+/**
+ * Get the list of friends for a user
+ */
+export const getUserFriends = async (userEmail: string) => {
+  try {
+    // Ensure user has friend arrays
+    await ensureFriendArrays(userEmail.toLowerCase());
+
+    const userDoc = await getUserByEmail(userEmail.toLowerCase());
+    if (!userDoc) throw new Error("User not found");
+
+    const userData = userDoc.data();
+    return { friends: userData.friends || [], error: "" };
+  } catch (error: any) {
+    console.error("Error getting user friends:", error);
+    return { friends: [], error: error.message || "Failed to get user friends" };
+  }
+};
+
+/**
+ * Get incoming friend requests for current user
+ */
+export const getIncomingFriendRequests = async () => {
+  try {
+
+    const currentUser = auth.currentUser;
+
+    if (!currentUser?.email) {
+      throw new Error("You must be logged in to get friend requests");
+    }
+
+    // Ensure user has friend arrays
+    await ensureFriendArrays(currentUser.email.toLowerCase());
+
+    const userDoc = await getUserByEmail(currentUser.email.toLowerCase());
+    if (!userDoc) throw new Error("User not found");
+
+    const userData = userDoc.data();
+    return { requests: userData.incomingFriendRequests || [], error: "" };
+  } catch (error: any) {
+    console.error("Error getting friend requests:", error);
+    return { requests: [], error: error.message || "Failed to get friend requests" };
+  }
+};
+
+
+// Ensure user document has friend arrays (helper function)
+const ensureFriendArrays = async (email: string) => {
+  const userRef = doc(db, 'users', email.toLowerCase());
+  const userSnap = await getDoc(userRef);
+
+  if (userSnap.exists()) {
+    const userData = userSnap.data();
+    const updates: {[key: string]: any} = {};
+
+    if (!userData.friends) updates.friends = [];
+    if (!userData.incomingFriendRequests) updates.incomingFriendRequests = [];
+    if (!userData.outgoingFriendRequests) updates.outgoingFriendRequests = [];
+
+    // Only update if any field was missing
+    if (Object.keys(updates).length > 0) {
+      await updateDoc(userRef, updates);
+      console.log(`Updated friend arrays for user: ${email}`);
+    }
+  }
 };

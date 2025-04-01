@@ -1,15 +1,17 @@
-import { View, Text, Button, TouchableOpacity } from 'react-native';
+import { View, Text, Button, TouchableOpacity, Alert } from 'react-native';
 import { useEffect, useState } from 'react';
 import * as AuthSession from 'expo-auth-session';
 import * as Google from 'expo-auth-session/providers/google';
 import { useUser } from '@contexts/UserContext';
 import React from 'react';
+import { router } from 'expo-router';
+import { auth } from '@/firebaseConfig';
+import { signOut } from 'firebase/auth';
 
 import ChangeUsernameModal from '@components/ChangeUsernameModal';
 import DeleteAccountModal from '@components/DeleteAccountModal';
 
 export default function Settings() {
-
     const { userInfo, setUserInfo } = useUser();
     const [changeUsernamePrompt, setChangeUsernamePrompt] = useState(false);
     const [deleteAccountPrompt, setDeleteAccountPrompt] = useState(false);
@@ -53,6 +55,40 @@ export default function Settings() {
         }
     }, [response]);
 
+    // Handle user logout
+    const handleLogout = async () => {
+        try {
+            Alert.alert(
+                "Logout",
+                "Are you sure you want to logout?",
+                [
+                    {
+                        text: "Cancel",
+                        style: "cancel"
+                    },
+                    {
+                        text: "Logout",
+                        onPress: async () => {
+                            // Clear user context data
+                            setUserInfo(null);
+
+                            // Sign out from Firebase
+                            await signOut(auth);
+
+                            console.log("User logged out successfully");
+
+                            // Redirect to sign-in page
+                            router.replace('/screens/welcome');
+                        },
+                        style: "destructive"
+                    }
+                ]
+            );
+        } catch (error: any) {
+            console.error("Logout error:", error);
+            Alert.alert("Error", "Failed to logout. Please try again.");
+        }
+    };
 
     return (
         <>
@@ -70,6 +106,12 @@ export default function Settings() {
                         className="py-3 border-b border-gray-800"
                     >
                         <Text className="text-teal-500">Delete Account</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                        onPress={handleLogout}
+                        className="py-3 border-b border-gray-800"
+                    >
+                        <Text className="text-teal-500">Logout</Text>
                     </TouchableOpacity>
                 </View>
 
