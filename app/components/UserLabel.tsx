@@ -1,3 +1,4 @@
+import { Feather } from "@expo/vector-icons";
 import { Image, Text, TouchableOpacity, View } from "react-native";
 
 interface UserLabelProps {
@@ -5,13 +6,17 @@ interface UserLabelProps {
   username: string;
   disabled?: boolean;
   classStyle?: string;
+  friend?: boolean;
+  me?: boolean;
 }
 
 export default function UserLabel({
   onPress,
   username,
   disabled = false,
-  classStyle
+  classStyle,
+  friend = false,
+  me = false
 }: UserLabelProps) {
   return (
     <TouchableOpacity
@@ -26,7 +31,12 @@ export default function UserLabel({
           className="h-9 w-9 rounded-full object-cover bg-white"
           resizeMode="contain"
         />
-        <Text className="text-white ml-4 text-md">{username}</Text>
+        {me ? (
+          <Text className="text-white ml-4 mr-2 text-md font-bold">{username} (me)</Text>
+        ) : (
+          <Text className="text-white ml-4 mr-2 text-md">{username}</Text>
+        )}
+        {friend && <Feather name="users" size={18} color="gray"/>}
       </View>
     </TouchableOpacity>
   );

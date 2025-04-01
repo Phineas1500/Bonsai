@@ -2,9 +2,10 @@ import { Keyboard, ScrollView, Text, TouchableWithoutFeedback, View, RefreshCont
 import React, { useEffect, useState } from 'react';
 import UserLabel from '@components/UserLabel';
 import SearchBar from '@components/SearchBar';
-import { getAllUsernames, getIncomingFriendRequests, getUserByEmail, acceptFriendRequest, rejectFriendRequest } from '@components/utils/userManagement';
+import { getAllUsernames, getIncomingFriendRequests, getUserByEmail, acceptFriendRequest, rejectFriendRequest, getUserFriendsUsernames } from '@components/utils/userManagement';
 import { router } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
+import { auth } from '@/firebaseConfig';
 
 interface FriendRequest {
   email: string;
@@ -15,27 +16,48 @@ export default function Social() {
   const [searchText, setSearchText] = useState('');
   const [allUsernames, setAllUsernames] = useState<string[]>([]);
   const [searchedUsernames, setSearchedUsernames] = useState<string[]>([]);
+  const [friends, setFriends] = useState<string[]>([]);
   const [friendRequests, setFriendRequests] = useState<FriendRequest[]>([]);
   const [loadingRequests, setLoadingRequests] = useState(false);
   const [processingRequest, setProcessingRequest] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [loadingPage, setLoadingPage] = useState(false);
+
+  // loads all relevant data on page load
+  useEffect(() => {
+    setLoadingPage(true)
+    fetchAllUsernames();
+    fetchListFriends();
+    loadFriendRequests();
+  }, []);
 
   // loads all usernames from database on page load
   // loading all usernames on page load right now because database isn't big
   // if database of users becomes super big then we should load usernames on search
-  useEffect(() => {
-    const fetchAllUsernames = async () => {
-      try {
-        const usernames = await getAllUsernames();
-        setAllUsernames(usernames);
-      } catch (error) {
-        console.log("error getting usernames");
-      }
-    };
+  const fetchAllUsernames = async () => {
+    try {
+      const usernames = await getAllUsernames();
+      setAllUsernames(usernames);
+    } catch (error) {
+      console.log("error getting usernames");
+    }
+  };
 
-    fetchAllUsernames();
-    loadFriendRequests();
-  }, []);
+  // loads list of user's friends
+  const fetchListFriends = async () => {
+    try {
+      const user = auth.currentUser;
+      if (user && user.email) {
+        const listOfFriends = await getUserFriendsUsernames(user.email);
+        setFriends(listOfFriends);
+      }
+    } catch (error) {
+      console.log("error getting list of friends");
+    } finally {
+      setLoadingPage(false);
+      setRefreshing(false);
+    }
+  };
 
   // Function to load incoming friend requests
   const loadFriendRequests = async () => {
@@ -62,7 +84,6 @@ export default function Social() {
       console.error("Error loading friend requests:", error);
     } finally {
       setLoadingRequests(false);
-      setRefreshing(false);
     }
   };
 
@@ -70,6 +91,7 @@ export default function Social() {
   const onRefresh = () => {
     setRefreshing(true);
     loadFriendRequests();
+    fetchListFriends();
   };
 
   // filters through list of all usernames based on user's search
@@ -184,13 +206,13 @@ export default function Social() {
 
             {/* Search Section */}
             <View className="w-full px-2 mb-4">
-              <Text className="text-white text-lg mb-2">Find Users</Text>
               <SearchBar
                 value={searchText}
                 onChangeText={setSearchText}
-                placeholder="Search..."
-                classStyle="mb-2"
+                placeholder="Search users..."
+                classStyle="mb-4"
               />
+              {/* If user is typing in the user search bar */}
               {searchedUsernames.length > 0 ? (
                 <View>
                   {searchedUsernames.map((username, index) => (
@@ -199,12 +221,42 @@ export default function Social() {
                       username={username}
                       onPress={() => handleUserPress(username)}
                       classStyle="mb-2"
+                      friend={friends.includes(username)}
                     />
                   ))}
                 </View>
               ) : (
                 <View>
-                  <Text className="mt-4 text-white text-center">Search for users</Text>
+                  <View className="flex-row items-center mb-2">
+                    <Text className="text-white text-lg mr-2">Friends</Text>
+                    <Feather name="users" size={18} color="white" />
+                  </View>
+                  {friends.length > 0 ? (
+                    // If user isn't typing in user search bar and has friends
+                    <View>
+                      {friends.map((username, index) => (
+                        <UserLabel
+                          key={index}
+                          username={username}
+                          onPress={() => handleUserPress(username)}
+                          classStyle="mb-2"
+                        />
+                      ))}
+                    </View>
+                  ) : (
+                    // If the user isn't typing in the user search bar and has no friends
+                    <View>
+                      {(loadingPage || refreshing) ? (
+                        <View className="flex-1 justify-center items-center">
+                          <ActivityIndicator size="large" color="#14b8a6" />
+                        </View>
+                      ) : (
+                        <View>
+                          <Text className="text-white text-center">You have not added anyone as a friend yet!</Text>
+                        </View>
+                      )}
+                    </View>
+                  )}
                 </View>
               )}
             </View>

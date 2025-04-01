@@ -410,6 +410,24 @@ export const getUserFriends = async (userEmail: string) => {
   }
 };
 
+export const getUserFriendsUsernames = async (userEmail: string) => {
+  try {
+    const friends = await getUserFriends(userEmail);
+    const emails = friends.friends;
+    const usernames = await Promise.all(
+      emails.map(async (email: string) => {
+          const user = await getUserByEmail(email);
+          if (!user) throw new Error("User not found");
+          return user.data().username;
+      })
+    );
+    return usernames;
+  } catch (error: any) {
+    console.error("Error getting user friends:", error);
+    return [];
+  }
+}
+
 /**
  * Get incoming friend requests for current user
  */
