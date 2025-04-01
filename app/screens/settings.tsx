@@ -1,14 +1,18 @@
-import { View, Text, Button } from 'react-native';
+import { View, Text, Button, TouchableOpacity } from 'react-native';
 import { useEffect, useState } from 'react';
-import GradientButton from '@components/GradientButton';
 import * as AuthSession from 'expo-auth-session';
 import * as Google from 'expo-auth-session/providers/google';
 import { useUser } from '@contexts/UserContext';
 import React from 'react';
 
+import ChangeUsernameModal from '@components/ChangeUsernameModal';
+import DeleteAccountModal from '@components/DeleteAccountModal';
+
 export default function Settings() {
 
     const { userInfo, setUserInfo } = useUser();
+    const [changeUsernamePrompt, setChangeUsernamePrompt] = useState(false);
+    const [deleteAccountPrompt, setDeleteAccountPrompt] = useState(false);
 
     const redirectUri = AuthSession.makeRedirectUri({
         path: '/screens/settings'
@@ -53,16 +57,45 @@ export default function Settings() {
     return (
         <>
             <View className="flex-1 flex-col items-start bg-stone-950 p-6">
-                <Text className="text-lg font-light text-teal-500 text-center">
-                    Settings
-                </Text>
-                <Button
-                    disabled={!request}
-                    title="Connect Google Calendar"
-                    onPress={() => promptAsync()}
+                <View className="w-full mb-6">
+                    <Text className="text-white text-lg mb-2">Account</Text>
+                    <TouchableOpacity
+                        onPress={() => setChangeUsernamePrompt(true)}
+                        className="py-3 border-b border-gray-800"
+                    >
+                        <Text className="text-teal-500">Change Username</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                        onPress={() => setDeleteAccountPrompt(true)}
+                        className="py-3 border-b border-gray-800"
+                    >
+                        <Text className="text-teal-500">Delete Account</Text>
+                    </TouchableOpacity>
+                </View>
+
+                <View className="w-full mb-6">
+                    <Text className="text-white text-lg mb-2">Integrations</Text>
+                    <Button
+                        disabled={!request}
+                        title="Connect Google Calendar"
+                        onPress={() => promptAsync()}
+                    />
+                </View>
+
+                <ChangeUsernameModal
+                    visible={changeUsernamePrompt}
+                    currentUsername={userInfo?.username || ""}
+                    onRequestClose={() => {
+                        setChangeUsernamePrompt(false);
+                    }}
+                />
+                <DeleteAccountModal
+                    visible={deleteAccountPrompt}
+                    onRequestClose={() => {
+                        setDeleteAccountPrompt(false);
+                    }}
                 />
             </View>
         </>
-
     );
 }

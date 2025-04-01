@@ -1,10 +1,8 @@
-import { View, Text, Image, TouchableOpacity } from "react-native";
+import { View, Text, Image } from "react-native";
 import GradientText from "@components/GradientText";
 import { getAuth } from "firebase/auth";
 import { useEffect, useState } from "react";
 import { getUserByEmail } from "@components/utils/userManagement";
-import ChangeUsernameModal from "@components/ChangeUsernameModal";
-import DeleteAccountModal from "../components/DeleteAccountModal";
 import { format } from 'date-fns';
 
 // interface of all user info stored in firestore
@@ -18,8 +16,6 @@ interface UserInfo {
 export default function Profile() {
   const [userInfo, setUserInfo] = useState<UserInfo | null>(null);
   const [loading, setLoading] = useState(true);
-  const [changeUsernamePrompt, setChangeUsernamePrompt] = useState(false);
-  const [deleteAccountPrompt, setDeleteAccountPrompt] = useState(false);
 
   const loadUserInfo = async () => {
     // get current user from auth
@@ -88,32 +84,6 @@ export default function Profile() {
                 classStyle="text-xl font-black"
                 size={[800, 80]}
               />
-              <ChangeUsernameModal
-                visible={changeUsernamePrompt}
-                currentUsername={userInfo ? userInfo.username : ""}
-                onRequestClose={() => {
-                  setChangeUsernamePrompt(false);
-                  loadUserInfo();
-                }}
-              />
-              <DeleteAccountModal
-                visible={deleteAccountPrompt}
-                onRequestClose={() => {
-                  setDeleteAccountPrompt(false);
-                }}
-              />
-            </View>
-            <View className="w-full justify-center items-center gap-y-6 mb-8">
-              <TouchableOpacity
-                onPress={() => setChangeUsernamePrompt(true)}
-              >
-                <Text className="text-teal-500">Change Username</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                onPress={() => setDeleteAccountPrompt(true)}
-              >
-                <Text className="text-teal-500">Delete Account</Text>
-              </TouchableOpacity>
             </View>
           </View>
         }
