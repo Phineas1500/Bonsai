@@ -1,9 +1,11 @@
 import { View, Image, Text, TouchableOpacity, Animated, Platform, StatusBar, Dimensions } from "react-native";
 import { useState, useRef } from 'react';
 import { router } from 'expo-router';
-import GradientText from "./GradientText";
 import { BlurView } from 'expo-blur';
 import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
+
+import GradientText from "./GradientText";
+
 
 export default function Navbar() {
 
@@ -25,14 +27,17 @@ export default function Navbar() {
         <View className="flex-col items-center bg-stone-950">
             {/* navbar */}
             <View style={{ paddingTop: statusBarHeight }} className="flex-row items-center justify-between px-5 w-full z-50">
-                <View className="flex-row items-center">
+                <TouchableOpacity
+                    className="flex-row items-center"
+                    onPress={() => { router.push('/screens/chat') }}
+                >
                     <Image
                         source={require('@assets/images/bonsai-logo.png')}
                         className="w-10 h-10"
                         resizeMode="contain"
                     />
                     <GradientText text="Bonsai" classStyle="ml-2 text-xl font-bold" size={[80, 25]} />
-                </View>
+                </TouchableOpacity>
                 <TouchableOpacity
                     onPress={toggleDropdown}
                     className="p-4" // Increased touch target
@@ -67,41 +72,41 @@ export default function Navbar() {
                 <View className="p-4">
                     <TouchableOpacity
                         className="flex-row items-center mb-2"
-                        onPress={() => {toggleDropdown(), router.push('/screens/chat')}}
+                        onPress={() => { toggleDropdown(), router.push('/screens/chat') }}
                     >
-                        <Feather name="home" size={20} color={"#14b8a6"} style={{marginRight: 8}} />
+                        <Feather name="home" size={20} color={"#14b8a6"} style={{ marginRight: 8 }} />
                         <Text className="text-white text-lg">Home</Text>
                     </TouchableOpacity>
-                    
+
                     <TouchableOpacity
                         className="flex-row items-center mb-2"
-                        onPress={() => {toggleDropdown(), router.push('/screens/profile')}}
+                        onPress={() => { toggleDropdown(), router.push('/screens/profile') }}
                     >
-                        <Feather name="user" size={20} color={"#14b8a6"} style={{marginRight: 8}} />
+                        <Feather name="user" size={20} color={"#14b8a6"} style={{ marginRight: 8 }} />
                         <Text className="text-white text-lg">Profile</Text>
                     </TouchableOpacity>
 
                     <TouchableOpacity
                         className="flex-row items-center mb-2"
-                        onPress={() => {toggleDropdown(), router.push('/screens/tasks')}}
+                        onPress={() => { toggleDropdown(), router.push('/screens/tasks') }}
                     >
-                        <MaterialCommunityIcons name="target" size={20} color={"#14b8a6"} style={{marginRight: 8}} />
+                        <MaterialCommunityIcons name="target" size={20} color={"#14b8a6"} style={{ marginRight: 8 }} />
                         <Text className="text-white text-lg">Goals</Text>
                     </TouchableOpacity>
 
                     <TouchableOpacity
                         className="flex-row items-center mb-2"
-                        onPress={() => {toggleDropdown(), router.push('/screens/social')}}
+                        onPress={() => { toggleDropdown(), router.push('/screens/social') }}
                     >
-                        <Feather name="users" size={20} color={"#14b8a6"} style={{marginRight: 8}} />
+                        <Feather name="users" size={20} color={"#14b8a6"} style={{ marginRight: 8 }} />
                         <Text className="text-white text-lg">Social</Text>
                     </TouchableOpacity>
 
                     <TouchableOpacity
                         className="flex-row items-center"
-                        onPress={() => {toggleDropdown(), router.push('/screens/settings')}}
+                        onPress={() => { toggleDropdown(), router.push('/screens/settings') }}
                     >
-                        <Feather name="settings" size={20} color={"#14b8a6"} style={{marginRight: 8}} />
+                        <Feather name="settings" size={20} color={"#14b8a6"} style={{ marginRight: 8 }} />
                         <Text className="text-white text-lg">Settings</Text>
                     </TouchableOpacity>
                 </View>

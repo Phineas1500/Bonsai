@@ -6,6 +6,7 @@ import { TasksProvider } from './contexts/TasksContext';
 import Navbar from './components/Navbar';
 import * as Notifications from "expo-notifications";
 import { NotificationProvider } from './contexts/NotificationContext';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
@@ -32,18 +33,20 @@ export default function RootLayout() {
   );
 
   return (
-    <UserProvider>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <UserProvider>
         <TasksProvider>
           <NotificationProvider>
-          {shouldShowNavbar && <Navbar />}
-          <Stack
-            screenOptions={{
-              headerShown: false,
-              animation: 'none',
-            }}
-          />
+            {shouldShowNavbar && <Navbar />}
+            <Stack
+              screenOptions={{
+                headerShown: false,
+                animation: 'none',
+              }}
+            />
           </NotificationProvider>
         </TasksProvider>
-    </UserProvider>
+      </UserProvider>
+    </GestureHandlerRootView>
   );
 }
