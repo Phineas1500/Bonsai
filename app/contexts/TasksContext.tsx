@@ -9,6 +9,8 @@ export interface TaskItemData {
   startTime: string;
   endTime: string;
   location?: string; // Add optional location property
+  priority: number; // 1-10 scale, 10 being highest priority
+  isTask?: boolean; // Add this to differentiate between events and tasks
 }
 
 interface TasksContextType {
@@ -31,10 +33,42 @@ export function TasksProvider({ children }: { children: ReactNode }) {
   const [error, setError] = useState<string | null>(null);
   const { userInfo } = useUser();
 
+  // Priority calculation algorithm
+  const calculatePriority = (item: any): number => {
+    let priority = 5; // Default medium priority
+    
+    // Factor 1: Urgency - How soon is the event (within 24 hours gets higher priority)
+    const now = new Date();
+    const eventStart = new Date(item.start.dateTime);
+    const hoursUntilEvent = (eventStart.getTime() - now.getTime()) / (1000 * 60 * 60);
+    
+    if (hoursUntilEvent <= 2) priority += 3; // Very soon
+    else if (hoursUntilEvent <= 24) priority += 2; // Within a day
+    else if (hoursUntilEvent <= 48) priority += 1; // Within 2 days
+    
+    // Factor 2: Keywords in title
+    const title = item.summary?.toLowerCase() || '';
+    const importantKeywords = ['urgent', 'important', 'deadline', 'due', 'exam', 'meeting', 'interview'];
+    
+    for (const keyword of importantKeywords) {
+      if (title.includes(keyword)) {
+        priority += 1;
+        break; // Only add 1 point regardless of how many keywords match
+      }
+    }
+    
+    // Factor 3: Duration - Shorter events might be easier to complete
+    const duration = (new Date(item.end.dateTime).getTime() - eventStart.getTime()) / (1000 * 60);
+    if (duration <= 30) priority += 1; // Short meetings are often important
+    
+    // Ensure priority stays within 1-10 range
+    return Math.max(1, Math.min(10, priority));
+  };
+
   const fetchCalendarEvents = async (userInfo: UserInfo) => {
     if (!userInfo?.calendarAuth?.access_token) {
       setError("No access token available");
-      return;
+      return [];
     }
 
     setIsLoading(true);
@@ -59,9 +93,7 @@ export function TasksProvider({ children }: { children: ReactNode }) {
 
       if (!response.data.items || response.data.items.length === 0) {
         console.log("No calendar events found!");
-        setTasks([]);
-        setIsLoading(false);
-        return;
+        return [];
       }
 
       const newTaskList = [];
@@ -77,15 +109,18 @@ export function TasksProvider({ children }: { children: ReactNode }) {
           title: item.summary,
           description: item.description || "",
           startTime: item.start.dateTime,
-          endTime: item.end.dateTime
+          endTime: item.end.dateTime,
+          location: item.location || "",
+          priority: calculatePriority(item)
         };
         newTaskList.push(newTaskObj);
       }
 
-      console.log("Processed task list:", newTaskList);
-      setTasks(newTaskList);
+      // Sort by priority (highest first)
+      newTaskList.sort((a, b) => b.priority - a.priority);
 
-      console.log("user info:", userInfo);
+      console.log("Processed task list:", newTaskList);
+      return newTaskList;
     } catch (error: any) {
       console.error("Error fetching calendar events:", error);
       setError("Failed to fetch calendar events");
@@ -94,21 +129,131 @@ export function TasksProvider({ children }: { children: ReactNode }) {
         console.error("Response error data:", error.response.data);
         console.error("Response error status:", error.response.status);
       }
+      return [];
     } finally {
       setIsLoading(false);
     }
   };
 
+  const fetchGoogleTasks = async (userInfo: UserInfo) => {
+    if (!userInfo?.calendarAuth?.access_token) {
+      return [];
+    }
+
+    try {
+      const response = await axios.get(
+        "https://tasks.googleapis.com/tasks/v1/users/@me/lists", 
+        {
+          headers: {
+            Authorization: `Bearer ${userInfo.calendarAuth.access_token}`
+          }
+        }
+      );
+
+      // If no task lists, return empty array
+      if (!response.data.items || response.data.items.length === 0) {
+        return [];
+      }
+
+      // Get the default task list
+      const defaultTaskList = response.data.items[0].id;
+
+      // Fetch tasks from the default list
+      const tasksResponse = await axios.get(
+        `https://tasks.googleapis.com/tasks/v1/lists/${defaultTaskList}/tasks`,
+        {
+          headers: {
+            Authorization: `Bearer ${userInfo.calendarAuth.access_token}`
+          },
+          params: {
+            showCompleted: false,
+            showHidden: false
+          }
+        }
+      );
+
+      if (!tasksResponse.data.items) {
+        return [];
+      }
+
+      // Convert Google Tasks to our TaskItemData format
+      const tasksList = tasksResponse.data.items.map((item: any) => {
+        let priority = 5; // Default medium priority
+        
+        // Fix the date handling for due dates
+        let endTime: Date;
+        let startTime: Date;
+        
+        if (item.due) {
+          // Parse the date parts manually to ensure correct local date
+          const [year, month, day] = item.due.split('T')[0].split('-').map(Number);
+          
+          // Create date at 23:59:59 on the due date in local timezone
+          endTime = new Date(year, month - 1, day, 23, 59, 59);
+          
+          // Set start time to same day at 9:00 AM as a reasonable default
+          startTime = new Date(year, month - 1, day, 9, 0, 0);
+        } else {
+          // No due date, set defaults
+          endTime = new Date(Date.now() + 3600000);
+          startTime = new Date(Date.now());
+        }
+        
+        // Prioritize tasks with due dates
+        if (item.due) {
+          const now = new Date();
+          const hoursUntilDue = (endTime.getTime() - now.getTime()) / (1000 * 60 * 60);
+          
+          if (hoursUntilDue <= 24) priority += 2;
+          else if (hoursUntilDue <= 48) priority += 1;
+        }
+        
+        return {
+          id: item.id,
+          title: item.title,
+          description: item.notes || "",
+          startTime: startTime.toISOString(),
+          endTime: endTime.toISOString(),
+          priority: priority,
+          isTask: true
+        } as TaskItemData;
+      });
+
+      return tasksList;
+    } catch (error: any) {
+      console.error("Error fetching Google Tasks:", error);
+      return [];
+    }
+  };
+
   const refreshTasks = async () => {
     if (userInfo) {
-      await fetchCalendarEvents(userInfo);
+      setIsLoading(true);
+      setError(null);
+      try {
+        // Get calendar events
+        const events = await fetchCalendarEvents(userInfo);
+        
+        // Get Google Tasks 
+        const tasks = await fetchGoogleTasks(userInfo);
+        
+        // Combine and sort by priority
+        const combinedItems = [...events, ...tasks].sort((a, b) => b.priority - a.priority);
+        
+        setTasks(combinedItems);
+      } catch (error: any) {
+        console.error("Error refreshing tasks:", error);
+        setError("Failed to refresh tasks and events");
+      } finally {
+        setIsLoading(false);
+      }
     }
   };
 
   // Initial fetch on mount or when userInfo changes
   useEffect(() => {
     if (userInfo?.calendarAuth?.access_token) {
-      fetchCalendarEvents(userInfo);
+      refreshTasks();
     }
   }, [userInfo?.calendarAuth?.access_token]);
 

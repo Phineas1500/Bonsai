@@ -1,16 +1,22 @@
-import { View, Text, Button } from 'react-native';
+import { View, Text, Button, TouchableOpacity, Alert } from 'react-native';
 import { useEffect, useState } from 'react';
-import GradientButton from '@components/GradientButton';
 import * as AuthSession from 'expo-auth-session';
 import * as Google from 'expo-auth-session/providers/google';
 import { useUser } from '@contexts/UserContext';
 import React from 'react';
 import { useNotification } from '../contexts/NotificationContext';
 import { NotificationPayload, sendPushNotification } from '../components/utils/notificationAPI';
+import { router } from 'expo-router';
+import { auth } from '@/firebaseConfig';
+import { signOut } from 'firebase/auth';
+
+import ChangeUsernameModal from '@components/ChangeUsernameModal';
+import DeleteAccountModal from '@components/DeleteAccountModal';
 
 export default function Settings() {
-
     const { userInfo, setUserInfo } = useUser();
+    const [changeUsernamePrompt, setChangeUsernamePrompt] = useState(false);
+    const [deleteAccountPrompt, setDeleteAccountPrompt] = useState(false);
 
     const redirectUri = AuthSession.makeRedirectUri({
         path: '/screens/settings'
@@ -53,47 +59,89 @@ export default function Settings() {
         }
     }, [response]);
 
-    const showNotification = async () => {
+    // Handle user logout
+    const handleLogout = async () => {
+        try {
+            Alert.alert(
+                "Logout",
+                "Are you sure you want to logout?",
+                [
+                    {
+                        text: "Cancel",
+                        style: "cancel"
+                    },
+                    {
+                        text: "Logout",
+                        onPress: async () => {
+                            // Clear user context data
+                            setUserInfo(null);
 
-        const myEmail = userInfo?.email;
-        if (!myEmail) return;
+                            // Sign out from Firebase
+                            await signOut(auth);
 
-        const hello: NotificationPayload = {
-            email: userInfo.email,
-            title: "Hello!",
-            body: "This is a hello message",
-            data: {}
+                            console.log("User logged out successfully");
+
+                            // Redirect to sign-in page
+                            router.replace('/screens/welcome');
+                        },
+                        style: "destructive"
+                    }
+                ]
+            );
+        } catch (error: any) {
+            console.error("Logout error:", error);
+            Alert.alert("Error", "Failed to logout. Please try again.");
         }
-        sendPushNotification(hello);
-    }
+    };
 
     return (
         <>
             <View className="flex-1 flex-col items-start bg-stone-950 p-6">
-                <Text className="text-lg font-light text-teal-500 text-center">
-                    Settings
-                </Text>
-                <Button
-                    disabled={!request}
-                    title="Connect Google Calendar"
-                    onPress={() => promptAsync()}
+                <View className="w-full mb-6">
+                    <Text className="text-white text-lg mb-2">Account</Text>
+                    <TouchableOpacity
+                        onPress={() => setChangeUsernamePrompt(true)}
+                        className="py-3 border-b border-gray-800"
+                    >
+                        <Text className="text-teal-500">Change Username</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                        onPress={() => setDeleteAccountPrompt(true)}
+                        className="py-3 border-b border-gray-800"
+                    >
+                        <Text className="text-teal-500">Delete Account</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                        onPress={handleLogout}
+                        className="py-3 border-b border-gray-800"
+                    >
+                        <Text className="text-teal-500">Logout</Text>
+                    </TouchableOpacity>
+                </View>
+
+                <View className="w-full mb-6">
+                    <Text className="text-white text-lg mb-2">Integrations</Text>
+                    <Button
+                        disabled={!request}
+                        title="Connect Google Calendar"
+                        onPress={() => promptAsync()}
+                    />
+                </View>
+
+                <ChangeUsernameModal
+                    visible={changeUsernamePrompt}
+                    currentUsername={userInfo?.username || ""}
+                    onRequestClose={() => {
+                        setChangeUsernamePrompt(false);
+                    }}
                 />
-                <Button
-                    title="Enable Notifications"
-                    onPress={() => enableNotifications()}
+                <DeleteAccountModal
+                    visible={deleteAccountPrompt}
+                    onRequestClose={() => {
+                        setDeleteAccountPrompt(false);
+                    }}
                 />
-                <Button
-                    title="Show notification"
-                    onPress={() => showNotification()}
-                />
-                <Text className='text-white'>
-                    push token: {expoPushToken} 
-                </Text>
-                <Text className='text-white'>
-                    notifications: {JSON.stringify(notifications)}
-                </Text>
             </View>
         </>
-
     );
 }

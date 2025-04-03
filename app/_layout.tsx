@@ -1,5 +1,6 @@
 import React from 'react';
 import { Stack, usePathname } from 'expo-router';
+
 import { UserProvider } from './contexts/UserContext';
 import { TasksProvider } from './contexts/TasksContext';
 import Navbar from './components/Navbar';

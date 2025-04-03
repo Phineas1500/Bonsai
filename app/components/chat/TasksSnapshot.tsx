@@ -16,8 +16,9 @@ const TasksSnapshot = () => {
     );
   }
 
-  // Show up to 4 tasks in the snapshot
-  const upcomingTasks = tasks.slice(0, 4);
+  // Show up to 3 tasks in the snapshot
+  const SHOW_TASKS = 3;
+  const upcomingTasks = tasks.slice(0, SHOW_TASKS);
 
   return (
     <View className="py-4">
@@ -27,9 +28,9 @@ const TasksSnapshot = () => {
             <TaskItem key={task.id} itemData={task} />
           ))}
           <TouchableOpacity onPress={() => router.push('/screens/tasks')}>
-            {tasks.length > 4 ? (
+            {tasks.length > SHOW_TASKS + 1 ? (
               <Text className="text-gray-400 text-sm mt-1 text-center">
-                + {tasks.length - 4} more events
+                + {tasks.length - SHOW_TASKS} more events
               </Text>
             ) :
               <Text className="text-gray-400 text-sm mt-1 text-center">
