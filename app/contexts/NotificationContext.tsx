@@ -336,7 +336,7 @@ export function NotificationProvider({ children }: { children: React.ReactNode})
         const userEmail = userInfo?.email;
         if (!userEmail) {
             console.error("Unable to get user info. Perhaps no user is logged in")
-            return;
+            return false;
         }
 
         if (Platform.OS === "android") {
@@ -385,6 +385,8 @@ export function NotificationProvider({ children }: { children: React.ReactNode})
               ...currentPrefs,
               notificationsEnabled: true
             }, userInfo.email);
+
+            return true;
 
           } catch (e: unknown) {
             handleRegistrationError(`${e}`);

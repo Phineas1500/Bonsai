@@ -11,6 +11,8 @@ export interface NotificationPayload {
     triggerTime?: string //ISO string
 };
 
+
+
 export const scheduleLocalNotification = async (notification: NotificationPayload) => {
     if (!notification.triggerTime) {
         console.error("Notification must have trigger time");

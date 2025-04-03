@@ -98,17 +98,23 @@ export default function Settings() {
     //handle toggling notifications
     const switchEnabled = notificationPreferences.notificationsEnabled;
 
-    const toggleNotifications = () => {
+    const toggleNotifications = async () => {
         if (!userInfo?.email) {
             console.error("User email isn't available");
             return;
         }
 
         const newVal : boolean = !switchEnabled;
+
+        //if enabling notifications, request that
+        if (newVal) {
+            await enableNotifications();
+        }
+        
         const newPrefs : Partial<NotificationPreferences> = {
             notificationsEnabled: newVal
         }
-        updateNotificationPreferences({ ...newPrefs }, userInfo?.email);
+        await updateNotificationPreferences({ ...newPrefs }, userInfo?.email);
     }
 
     //handle selecting the type of notifications
