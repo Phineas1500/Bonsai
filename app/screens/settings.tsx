@@ -12,6 +12,7 @@ import { signOut } from 'firebase/auth';
 
 import ChangeUsernameModal from '@components/ChangeUsernameModal';
 import DeleteAccountModal from '@components/DeleteAccountModal';
+import { ScrollView } from 'react-native-gesture-handler';
 
 export default function Settings() {
     const { userInfo, setUserInfo } = useUser();
@@ -180,6 +181,7 @@ export default function Settings() {
 
     return (
         <>
+        <ScrollView className='flex-1'>
             <View className="flex-1 flex-col items-start bg-stone-950 p-6">
                 <View className="w-full mb-6">
                     <Text className="text-white text-lg mb-2">Account</Text>
@@ -213,10 +215,10 @@ export default function Settings() {
                 </View>
 
                 <View className="w-full mb-6">
-                    <Text className="text-white text-lg mb-2">Notifications</Text>
+                    <Text className="text-white text-lg border-b border-gray-800 py-3 ">Notifications</Text>
                     {/* Notifications toggle */}
-                    <View className="flex-row items-center justify-between mb-4">
-                        <Text className="text-white text-sm py-2">Notifications enabled:</Text>
+                    <View className="flex-row items-center justify-between mb-4 border-b border-gray-800 py-3">
+                        <Text className="text-white text-sm font-thin ">Notifications enabled:</Text>
                         <Switch
                             trackColor={{ false: "#ccc", true: "#81b0ff" }}
                             thumbColor={switchEnabled ? "#007aff" : "#f4f3f4"}
@@ -226,30 +228,36 @@ export default function Settings() {
                         />
                         
                     </View>
-                    <Text className="text-white">What do you want to be notified about?</Text>
-                    {availableTriggers.map(trigger => (
-                        <View key={trigger} className="flex-row items-center justify-between py-2">
-                        <Text className="text-white capitalize">{trigger}</Text>
-                        <Switch
-                            value={currentTriggers.includes(trigger)}
-                            onValueChange={() => toggleTrigger(trigger)}
-                            trackColor={{ false: "#ccc", true: "#81b0ff" }}
-                            thumbColor={currentTriggers.includes(trigger) ? "#007aff" : "#f4f3f4"}
-                        />
+                    {/* Notification preferences */}
+                    <View className="border-b mb-4 border-gray-800">
+                        <Text className="text-white font-bold text-sm mb-1">What do you want to be notified about?</Text>
+                        {availableTriggers.map(trigger => (
+                            <View key={trigger} className="flex-row items-center justify-between py-2">
+                            <Text className="text-white font-thin capitalize">{trigger}</Text>
+                            <Switch
+                                value={currentTriggers.includes(trigger)}
+                                onValueChange={() => toggleTrigger(trigger)}
+                                trackColor={{ false: "#ccc", true: "#81b0ff" }}
+                                thumbColor={currentTriggers.includes(trigger) ? "#007aff" : "#f4f3f4"}
+                            />
+                        </View>
+                        ))}
                     </View>
-                    ))}
-                    <Text className="text-white">How frequently do you want to be notified?</Text>
-                    {frequencyOptions.map(freqStr => (
-                        <View key={freqStr} className="flex-row items-center justify-between py-2">
-                        <Text className="text-white capitalize">{freqStr}</Text>
-                        <Switch
-                            value={isFrequencyEnabled(freqStr)}
-                            onValueChange={() => toggleFrequency(freqStr)}
-                            trackColor={{ false: "#ccc", true: "#81b0ff" }}
-                            thumbColor={isFrequencyEnabled(freqStr) ? "#007aff" : "#f4f3f4"}
-                        />
+                    <View className="order-b mb-4 border-gray-800">
+                        {/* Notifications frequency */}
+                        <Text className="text-white text-sm mb-1">How frequently do you want to be notified?</Text>
+                        {frequencyOptions.map(freqStr => (
+                            <View key={freqStr} className="flex-row items-center justify-between py-2">
+                            <Text className="text-white capitalize font-thin">{freqStr}</Text>
+                            <Switch
+                                value={isFrequencyEnabled(freqStr)}
+                                onValueChange={() => toggleFrequency(freqStr)}
+                                trackColor={{ false: "#ccc", true: "#81b0ff" }}
+                                thumbColor={isFrequencyEnabled(freqStr) ? "#007aff" : "#f4f3f4"}
+                            />
+                        </View>
+                        ))}
                     </View>
-                    ))}
 
                 </View>
 
@@ -267,6 +275,7 @@ export default function Settings() {
                     }}
                 />
             </View>
+            </ScrollView>
         </>
     );
 }
