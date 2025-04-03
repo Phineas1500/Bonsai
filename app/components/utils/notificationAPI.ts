@@ -28,7 +28,9 @@ export const scheduleLocalNotification = async (notification: NotificationPayloa
         },
     });
 
-    console.log("scheduled notification for ", notification.triggerTime, "with id: ", notificationID);
+    const dateObj = new Date(notification.triggerTime);
+
+    console.log("scheduled notification for ", dateObj.toLocaleTimeString(), "with id: ", notificationID);
     
     return notificationID;
 }

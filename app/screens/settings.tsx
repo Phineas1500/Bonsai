@@ -95,15 +95,7 @@ export default function Settings() {
     };
 
     //handle toggling notifications
-    const [switchEnabled, setSwitchEnabled] = useState(false);
-
-    // set switch to reflect if notifications are enabled 
-    useEffect(() => {
-
-        const isEnabled = notificationPreferences.notificationsEnabled;
-        setSwitchEnabled(isEnabled);
-
-    }, [userInfo])
+    const switchEnabled = notificationPreferences.notificationsEnabled;
 
     const toggleNotifications = () => {
         if (!userInfo?.email) {
@@ -119,7 +111,7 @@ export default function Settings() {
     }
 
     //handle selecting the type of notifications
-    const currentTriggers = notificationPreferences.triggers
+    const currentTriggers = notificationPreferences.triggers;
 
     const availableTriggers = ["tasks", "friend-requests"]
 
@@ -134,7 +126,57 @@ export default function Settings() {
           : [...currentTriggers, trigger];
         
         updateNotificationPreferences({ triggers: updatedTriggers }, userInfo.email);
-      };
+    };
+
+    //handle selecting notification frequency 
+    const currentOffsets = notificationPreferences.reminderOffsets;
+    const frequencyOptions = [
+        "When it starts",
+        "5 minutes before",
+        "10 minutes before"
+    ]
+
+    const toggleFrequency = (frequency: string) => {
+        if (!userInfo?.email) {
+            console.error("User email isn't available when trying to query notification frequency");
+            return;
+        }
+
+        let minuteOffset = 0;
+        switch (frequency) {
+            case "When it starts":
+                minuteOffset = 0
+                break;
+            case "5 minutes before":
+                minuteOffset = 5
+                break;
+            case "10 minutes before":
+                minuteOffset = 10;
+                break;
+        }
+
+        const updatedOffsets = currentOffsets.includes(minuteOffset)
+          ? currentOffsets.filter(o => o !== minuteOffset)
+          : [...currentOffsets, minuteOffset];
+
+        updateNotificationPreferences({ reminderOffsets: updatedOffsets }, userInfo.email);
+    }
+
+    const isFrequencyEnabled = (frequency: string) => {
+        let minuteOffset = 0;
+        switch (frequency) {
+            case "When it starts":
+                minuteOffset = 0
+                break;
+            case "5 minutes before":
+                minuteOffset = 5
+                break;
+            case "10 minutes before":
+                minuteOffset = 10;
+                break;
+        }
+        return currentOffsets.includes(minuteOffset);
+    }
 
     return (
         <>
@@ -172,6 +214,7 @@ export default function Settings() {
 
                 <View className="w-full mb-6">
                     <Text className="text-white text-lg mb-2">Notifications</Text>
+                    {/* Notifications toggle */}
                     <View className="flex-row items-center justify-between mb-4">
                         <Text className="text-white text-sm py-2">Notifications enabled:</Text>
                         <Switch
@@ -192,6 +235,18 @@ export default function Settings() {
                             onValueChange={() => toggleTrigger(trigger)}
                             trackColor={{ false: "#ccc", true: "#81b0ff" }}
                             thumbColor={currentTriggers.includes(trigger) ? "#007aff" : "#f4f3f4"}
+                        />
+                    </View>
+                    ))}
+                    <Text className="text-white">How frequently do you want to be notified?</Text>
+                    {frequencyOptions.map(freqStr => (
+                        <View key={freqStr} className="flex-row items-center justify-between py-2">
+                        <Text className="text-white capitalize">{freqStr}</Text>
+                        <Switch
+                            value={isFrequencyEnabled(freqStr)}
+                            onValueChange={() => toggleFrequency(freqStr)}
+                            trackColor={{ false: "#ccc", true: "#81b0ff" }}
+                            thumbColor={isFrequencyEnabled(freqStr) ? "#007aff" : "#f4f3f4"}
                         />
                     </View>
                     ))}

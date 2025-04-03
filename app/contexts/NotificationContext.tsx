@@ -57,8 +57,6 @@ export function NotificationProvider({ children }: { children: React.ReactNode})
     // do stuff on load
     useEffect(() => {
         getPushToken();
-
-        fetchNotificationPreferences();
     }, []);
 
     //add new listeners if push token changes
@@ -91,6 +89,11 @@ export function NotificationProvider({ children }: { children: React.ReactNode})
 
     }, [expoPushToken]);
 
+    //update notification preferences if user changes
+    useEffect(() => {
+      fetchNotificationPreferences();
+    }, [userInfo?.email])
+
     //add notifications for tasks
     useEffect(() => {
       console.log("user email changed: ", userInfo?.email);
@@ -99,8 +102,8 @@ export function NotificationProvider({ children }: { children: React.ReactNode})
 
     /**
      * fetch the server state of notification preferences for a user and update the
-     * local user info context with that info. If the user doesn't have any notification
-     * preferences then create default preferences
+     * local user info context with that info. If the user exists but doesn't have any 
+     * notification preferences then create default preferences
      * 
      * @returns 
      */
@@ -149,14 +152,20 @@ export function NotificationProvider({ children }: { children: React.ReactNode})
           ...newPreferences
         }
 
+        //update the local user info context
         updateUserInfo({
           notificationPreferences: mergedPrefs
         })
 
+        //update the database
         const docRef = doc(db, "users", email);
             await updateDoc(docRef, {
               notificationPreferences: mergedPrefs
-             })
+             });
+      
+        //refresh scheduled notifications because logic for scheduling might have changed
+        await updateTaskNotifications();
+
       } catch (error: any) {
         console.error("Error updating notification preferences", error);
       }
@@ -178,7 +187,7 @@ export function NotificationProvider({ children }: { children: React.ReactNode})
       //if the user has notifications disabled then don't notify of anything
       const notificationPreferences = userInfo.notificationPreferences;
       if (!notificationPreferences) {
-        console.error("user doesn't have any notification preferences")
+        console.log("user doesn't have any notification preferences")
         return;
       }
       if (!notificationPreferences.notificationsEnabled) {
@@ -209,21 +218,14 @@ export function NotificationProvider({ children }: { children: React.ReactNode})
     /**
      * Schedules a local notification for that task that will trigger at the specified 
      * time. Adds the task notification to firebase to record that a notification for that
-     * task has been scheduled.
+     * task has been scheduled. If this task is to be notified with a greater frequency 
+     * then multiple notifications are set.
      * 
      * @param notification the notification payload for the notification to show
      * @param taskId the taskId given by google calendar to uniquely identify the task
      * @returns 
      */
     const addNotificationForTask = async (notification: NotificationPayload, taskId: string) => {
-      /**
-       * In firebase, collections have to have a document, even if the document is empty. 
-       * 
-       * /tasksToNotify (collection)
-       *    /{user email} (document, has nothing in it)
-       *        /notifications (subcollection containing task notification objects)
-       *            /abc123 (document with id = taskId)
-       */ 
     
       try {
         if (!notification.triggerTime) {
@@ -231,25 +233,52 @@ export function NotificationProvider({ children }: { children: React.ReactNode})
           return;
         }
 
-        //schedule local notification for task
-        const notificationID = await scheduleLocalNotification(notification);
-        if (!notificationID) {
-          console.error("Error scheduling notification");
+        const notificationPreferences = userInfo?.notificationPreferences;
+        if (!notificationPreferences) {
+          console.log("Notification preferences not initialized. Can't add notifications");
           return;
         }
 
-        //add the task to firebase
-        const taskNotification: TaskNotification = {
-          taskId: taskId,
-          notificationId: notificationID,
-          triggerTime: notification.triggerTime
-        }
-        const docRef = doc(db, "tasksToNotify", notification.email, "notifications", taskNotification.taskId);
-        await setDoc(docRef, {
-          taskId: taskNotification.taskId,
-          notificationId: taskNotification.notificationId,
-          triggerTime: taskNotification.triggerTime
+        //for each task to notify about, might have to create multiple notifications
+        //at different offset times i.e 5 minutes before, 10 minutes before ... 
+        const offsets = notificationPreferences.reminderOffsets;
+        const threads = offsets.map(async (minuteOffset) => {
+          if (!notification.triggerTime) return;
+          const originalTime = new Date(notification.triggerTime);
+
+          // subtract offset in milliseconds
+          const newTime = new Date(originalTime.getTime() - minuteOffset * 60 * 1000);
+
+          const newNotif: NotificationPayload = {
+            email: notification.email,
+            title: notification.title,
+            body: notification.body, 
+            data: notification.data,
+            triggerTime: newTime.toISOString()
+          }
+          //each notification for a task will have a unique notification id and same task id
+          const notificationID = await scheduleLocalNotification(newNotif);
+          if (!notificationID) {
+            console.error("Error scheduling notification");
+            return;
+          }
+
+          //add the notification to firebase
+          const taskNotification: TaskNotification = {
+            taskId: taskId,
+            notificationId: notificationID,
+            triggerTime: newTime.toISOString()
+          }
+          const docRef = doc(db, "tasksToNotify", notification.email, "notifications", taskNotification.notificationId);
+          await setDoc(docRef, {
+            taskId: taskNotification.taskId,
+            notificationId: taskNotification.notificationId,
+            triggerTime: taskNotification.triggerTime
+          });
+          return;
         });
+        await Promise.all(threads);
+        
       } catch (error: any) {
         console.error("Problem adding notification for user", error);
       }
@@ -262,7 +291,7 @@ export function NotificationProvider({ children }: { children: React.ReactNode})
       const docsSnapshot = await getDocs(collectionRef);
 
       const deletions = docsSnapshot.docs.map(async (docSnap) => {
-        //delete from device notifications via id
+        //delete from device notifications
         const scheduledTaskNotification = docSnap.data() as TaskNotification;
         await cancelLocalNotification(scheduledTaskNotification);
 
