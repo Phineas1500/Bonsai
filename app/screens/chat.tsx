@@ -9,6 +9,7 @@ import { useUser } from '@contexts/UserContext';
 import { createChat, getMessages, getUserChats, sendMessage } from '@components/utils/chatManagement';
 import { ChatMessage, MessageInput, WelcomeOverlay, Message, EventConfirmationModal } from '@components/chat';
 import { useTasks } from '@contexts/TasksContext';
+import { updateUserStreak } from '@components/utils/userManagement';
 
 export default function Chat() {
   const [message, setMessage] = useState('');
@@ -24,6 +25,7 @@ export default function Chat() {
   const [pendingEvents, setPendingEvents] = useState<any[]>([]);
   const [currentEventIndex, setCurrentEventIndex] = useState(0);
   const { tasks, refreshTasks } = useTasks();
+  const [dailyStreakCheckIn, setDailyStreakCheckIn] = useState(false);
 
   const scrollToBottom = () => {
     if (scrollViewRef.current) {
@@ -457,6 +459,20 @@ export default function Chat() {
     }
   };
 
+  const handleDailyChatbotCheckIn = async () => {
+    // Chatbot check in complete, update streak if applicable
+    // (check dailyStreakCheckIn so updateUserStreak doesn't run every time a message is sent)
+    if (!dailyStreakCheckIn) {
+      if (userInfo) {
+        const checkedIn = await updateUserStreak(userInfo.email);
+        setDailyStreakCheckIn(checkedIn);
+      }
+      else {
+        console.log("Couldn't get userInfo, streak not updated");
+      }
+    }
+  }
+
   const handleConfirmEvent = async () => {
     if (pendingEvents.length === 0 || currentEventIndex >= pendingEvents.length) return;
 
@@ -656,7 +672,10 @@ export default function Chat() {
         <MessageInput
           value={message}
           onChangeText={setMessage}
-          onSend={handleSend}
+          onSend={() => {
+            handleSend();
+            handleDailyChatbotCheckIn();
+          }}
           onPdfSelected={handlePdfSelected}
           disabled={isLoading || !message.trim()}
           onFocus={() => {

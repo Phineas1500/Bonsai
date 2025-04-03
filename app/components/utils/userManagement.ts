@@ -17,7 +17,9 @@ export const createUserDocument = async (email: string, username: string, signin
       signinType,
       friends: [],
       incomingFriendRequests: [],
-      outgoingFriendRequests: []
+      outgoingFriendRequests: [],
+      streak: 0,
+      lastCheckInDate: "0"
     });
     console.log('User document created:', email);
   }
@@ -137,6 +139,47 @@ export const deleteUserAccount = async () => {
     throw new Error('Error getting user');
   }
 };
+
+export const updateUserStreak = async (userEmail: string) => {
+  try {
+    const user = await getUserByEmail(userEmail);
+    if (!user) throw new Error('Error getting user');
+
+    // compare last time user checked in
+    const lastCheckInDate = user.data().lastCheckInDate ? new Date(user.data().lastCheckInDate) : new Date(0);
+    const currentDate = new Date();
+    const timeDiff = currentDate.getTime() - lastCheckInDate.getTime();
+    const hoursDiff = Math.floor(timeDiff / (1000 * 60 * 60));
+
+    // if difference between currentDate and lastCheckInDate is greater than 24 hours update or lose streak
+    if (hoursDiff >= 24) {
+      // if last check in was less than 48 hours ago, update streak by one
+      if (hoursDiff <= 48) {
+        await updateDoc(doc(db, "users", userEmail), {
+          streak: user.data().streak + 1,
+          lastCheckInDate: new Date().toISOString()
+        });
+      }
+      // else user loses their streak
+      else {
+        await updateDoc(doc(db, "users", userEmail), {
+          streak: 0,
+          lastCheckInDate: new Date().toISOString()
+        });
+      }
+      console.log("User streak updated");
+      return true;
+    }
+    // if last check in time is less than 24 hours, streak doesn't update
+    else {
+      console.log("User already checked in with chatbot within last 24 hours");
+      return false;
+    }
+  } catch (error: any) {
+    console.error(error);
+    return false;
+  }
+}
 
 export const getAllUsernames = async () => {
   const querySnapshot = await getDocs(collection(db, "users"));
@@ -410,15 +453,18 @@ export const getUserFriends = async (userEmail: string) => {
   }
 };
 
+/**
+ * Get the list of friends for a user by usernames (getUserFriends() returns list of emails)
+ */
 export const getUserFriendsUsernames = async (userEmail: string) => {
   try {
     const friends = await getUserFriends(userEmail);
     const emails = friends.friends;
     const usernames = await Promise.all(
       emails.map(async (email: string) => {
-          const user = await getUserByEmail(email);
-          if (!user) throw new Error("User not found");
-          return user.data().username;
+        const user = await getUserByEmail(email);
+        if (!user) throw new Error("User not found");
+        return user.data().username;
       })
     );
     return usernames;
@@ -462,7 +508,7 @@ const ensureFriendArrays = async (email: string) => {
 
   if (userSnap.exists()) {
     const userData = userSnap.data();
-    const updates: {[key: string]: any} = {};
+    const updates: { [key: string]: any } = {};
 
     if (!userData.friends) updates.friends = [];
     if (!userData.incomingFriendRequests) updates.incomingFriendRequests = [];

@@ -26,6 +26,8 @@ interface UserInfo {
   friends?: string[];
   incomingFriendRequests?: string[];
   outgoingFriendRequests?: string[];
+  streak?: number;
+  lastCheckInDate?: string;
 }
 
 type FriendshipStatus = 'none' | 'friends' | 'incoming' | 'outgoing' | 'error';
@@ -54,7 +56,9 @@ export default function Profile() {
             createdAt: data.createdAt,
             friends: data.friends || [],
             incomingFriendRequests: data.incomingFriendRequests || [],
-            outgoingFriendRequests: data.outgoingFriendRequests || []
+            outgoingFriendRequests: data.outgoingFriendRequests || [],
+            streak: data.streak || 0,
+            lastCheckInDate: data.lastCheckInDate || "0"
           };
           setUserInfo(userData);
 
@@ -89,7 +93,9 @@ export default function Profile() {
               createdAt: data.createdAt,
               friends: data.friends || [],
               incomingFriendRequests: data.incomingFriendRequests || [],
-              outgoingFriendRequests: data.outgoingFriendRequests || []
+              outgoingFriendRequests: data.outgoingFriendRequests || [],
+              streak: data.streak || 0,
+              lastCheckInDate: data.lastCheckInDate || "0"
             };
             setUserInfo(userData);
             setIsCurrentUser(true);
@@ -249,7 +255,7 @@ export default function Profile() {
             </View>
 
             {/* Username */}
-            <View className="items-center">
+            <View className="items-center mt-2">
               <GradientText
                 text={userInfo ? userInfo.username : "First Last"}
                 classStyle="text-3xl font-bold"
@@ -293,7 +299,23 @@ export default function Profile() {
               </View>
             )}
 
+            {/* Achievements and Streaks */}
+            <View className="mt-6">
+              {/* Chatbot Check-in Streak */}
+              <View className="items-center">
+                <Text className="text-white font-bold mt-4">
+                  Daily Check-In Streak:
+                </Text>
+                <GradientText
+                  text={userInfo ? String(userInfo.streak) : "0"}
+                  classStyle="text-3xl font-bold"
+                  size={[800, 40]}
+                />
+              </View>
+            </View>
+
           </View>
+
         </View>
       )}
     </View>
