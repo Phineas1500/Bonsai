@@ -126,8 +126,12 @@ export default function Chat() {
               {"isCalendarEvent": true, "events": [{"title": "Event title", "description": "Event description", "location": "Event location", "startTime": "ISO string with timezone offset", "endTime": "ISO string with timezone offset"}, {...more events if mentioned...}]}
 
               For calendar summary requests:
-              If the user is asking about their schedule, agenda, upcoming events, or calendar (with phrases like "what's on my calendar", "what's my schedule", "show my events", "what do I have coming up", etc.), respond with:
+              If the user is specifically asking for their FULL schedule, agenda, or overview of ALL upcoming events (with phrases like "what's my entire schedule", "show me all my events", "what's my full calendar look like"), respond with:
               {"isCalendarSummaryRequest": true}
+
+              For specific calendar queries:
+              If the user is asking about events during a specific time period (like "today", "tomorrow", "this weekend", "next week", "Friday", etc.), respond with:
+              {"isSpecificTimeQuery": true, "timePeriod": "today/tomorrow/this weekend/etc", "response": "Your response describing just the events during that time period"}
 
               Important:
               - When generating timestamps, include the timezone offset in the ISO strings and assume the user is referring to times in their local timezone (${Intl.DateTimeFormat().resolvedOptions().timeZone}).
@@ -140,7 +144,7 @@ export default function Chat() {
               Format your response as:
 
               [AI_RESPONSE]
-              {"isCalendarEvent": false, "isCalendarSummaryRequest": false, "response": "Your actual helpful answer addressing the user's question goes here. Be thoughtful and informative."}
+              {"isCalendarEvent": false, "isCalendarSummaryRequest": false, "isSpecificTimeQuery": false, "response": "Your actual helpful answer addressing the user's question goes here. Be thoughtful and informative."}
               [AI_RESPONSE]
 
               When determining dates and times, assume today is ${new Date().toDateString()} in time zone ${Intl.DateTimeFormat().resolvedOptions().timeZone}.
@@ -369,6 +373,91 @@ export default function Chat() {
     return summaryText;
   };
 
+  // Add this function after getCalendarSummary
+  const getSpecificTimeEvents = (timePeriod: string) => {
+    if (tasks.length === 0) {
+      return "You don't have any events scheduled for that time period.";
+    }
+
+    const today = new Date();
+    const todayStr = today.toISOString().split('T')[0];
+    const tomorrowDate = new Date(today);
+    tomorrowDate.setDate(today.getDate() + 1);
+    const tomorrowStr = tomorrowDate.toISOString().split('T')[0];
+    
+    // Filter tasks based on the requested time period
+    let filteredTasks = [...tasks];
+    let periodName = "";
+
+    switch(timePeriod.toLowerCase()) {
+      case 'today':
+        filteredTasks = tasks.filter(task => task.startTime.startsWith(todayStr));
+        periodName = "today";
+        break;
+      case 'tomorrow':
+        filteredTasks = tasks.filter(task => task.startTime.startsWith(tomorrowStr));
+        periodName = "tomorrow";
+        break;
+      case 'this weekend':
+        // Get next Saturday and Sunday
+        const saturday = new Date(today);
+        saturday.setDate(today.getDate() + (6 - today.getDay()));
+        const sunday = new Date(saturday);
+        sunday.setDate(saturday.getDate() + 1);
+        
+        const saturdayStr = saturday.toISOString().split('T')[0];
+        const sundayStr = sunday.toISOString().split('T')[0];
+        
+        filteredTasks = tasks.filter(task => 
+          task.startTime.startsWith(saturdayStr) || task.startTime.startsWith(sundayStr)
+        );
+        periodName = "this weekend";
+        break;
+      // You can add more time periods as needed
+      default:
+        // Try to parse the time period as a specific date
+        try {
+          const specificDate = new Date(timePeriod);
+          if (!isNaN(specificDate.getTime())) {
+            const specificDateStr = specificDate.toISOString().split('T')[0];
+            filteredTasks = tasks.filter(task => task.startTime.startsWith(specificDateStr));
+            periodName = format(specificDate, 'EEEE, MMMM d');
+          }
+        } catch(e) {
+          // If we can't parse it, just use the original time period
+          periodName = timePeriod;
+        }
+    }
+
+    if (filteredTasks.length === 0) {
+      return `You don't have any events scheduled for ${periodName}.`;
+    }
+
+    // Sort by start time
+    filteredTasks.sort((a, b) => 
+      new Date(a.startTime).getTime() - new Date(b.startTime).getTime()
+    );
+
+    let summaryText = `Here's what you have scheduled for ${periodName}:\n\n`;
+
+    filteredTasks.forEach(event => {
+      const startTime = format(parseISO(event.startTime), 'h:mm a');
+      const endTime = format(parseISO(event.endTime), 'h:mm a');
+      const priorityIndicator = event.priority >= 8 ? "⚠️ " : 
+                               event.priority >= 6 ? "⚡ " : "";
+      
+      summaryText += `• ${priorityIndicator}${startTime} - ${endTime}: ${event.title}`;
+
+      if (event.location && typeof event.location === 'string' && event.location.trim() !== '') {
+        summaryText += ` (at ${event.location})`;
+      }
+
+      summaryText += "\n";
+    });
+
+    return summaryText;
+  };
+
   // Handle sending a message
   const handleSend = async () => {
     if (!message.trim() || !chatId) return;
@@ -403,13 +492,34 @@ export default function Chat() {
         setIsLoading(false);
       }
       else if (analysis.isCalendarSummaryRequest) {
-        // Generate calendar summary
+        // Generate full calendar summary
         const summaryText = await getCalendarSummary();
 
         // Add bot response to messages
         const botResponse = {
           id: (Date.now() + 1).toString(),
           text: summaryText,
+          sender: 'bot' as const,
+          timestamp: new Date()
+        };
+
+        try {
+          await sendMessage(chatId, botResponse);
+        } catch (error) {
+          console.log("Error syncing messages with the server:", error);
+        }
+
+        setMessages(prev => [...prev, botResponse]);
+        setIsLoading(false);
+      }
+      else if (analysis.isSpecificTimeQuery) {
+        // Generate time-specific calendar query
+        const summaryText = getSpecificTimeEvents(analysis.timePeriod);
+        
+        // Add bot response to messages
+        const botResponse = {
+          id: (Date.now() + 1).toString(),
+          text: analysis.response || summaryText,
           sender: 'bot' as const,
           timestamp: new Date()
         };

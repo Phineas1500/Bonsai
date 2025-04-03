@@ -9,12 +9,13 @@ import {
   Platform,
   Alert,
   ActivityIndicator,
+  TouchableWithoutFeedback,
 } from 'react-native';
 import { TaskItemData } from '@contexts/TasksContext';
 import { BlurView } from 'expo-blur';
 import { Feather, MaterialIcons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
-import { format } from 'date-fns';
+import { format, setHours, setMinutes, setSeconds } from 'date-fns';
 
 interface TaskModalProps {
   visible: boolean;
@@ -70,7 +71,9 @@ const TaskModal = ({ visible, onClose, onSave, task, isGoogleCalendarLinked }: T
       return;
     }
 
-    if (startDate > endDate) {
+    // For tasks, we don't need to check start vs end time
+    // For events, ensure end time is after start time
+    if (type === 'event' && startDate > endDate) {
       Alert.alert('Error', 'End time must be after start time');
       return;
     }
@@ -98,12 +101,32 @@ const TaskModal = ({ visible, onClose, onSave, task, isGoogleCalendarLinked }: T
   const saveTask = async () => {
     setIsLoading(true);
     try {
+      // Different handling for tasks vs events
+      let startTimeValue: string;
+      let endTimeValue: string;
+
+      if (type === 'task') {
+        // For tasks:
+        // - Start time is the same day at 00:00
+        // - End time is the same day at 23:59
+        const dueDateOnly = new Date(endDate);
+        const startOfDay = new Date(dueDateOnly.setHours(0, 0, 0, 0));
+        const endOfDay = new Date(dueDateOnly.setHours(23, 59, 59, 0));
+
+        startTimeValue = startOfDay.toISOString();
+        endTimeValue = endOfDay.toISOString();
+      } else {
+        // For events, use the actual times selected
+        startTimeValue = startDate.toISOString();
+        endTimeValue = endDate.toISOString();
+      }
+
       const taskData: TaskItemData = {
         id: task?.id || `temp-${Date.now()}`,
         title,
         description,
-        startTime: startDate.toISOString(),
-        endTime: endDate.toISOString(),
+        startTime: startTimeValue,
+        endTime: endTimeValue,
         location,
         priority, // Priority will be recalculated by the task context
         isTask: type === 'task'
@@ -123,30 +146,61 @@ const TaskModal = ({ visible, onClose, onSave, task, isGoogleCalendarLinked }: T
     }
   };
 
+  // Dismiss any date/time picker that's showing
+  const dismissPickers = () => {
+    setShowStartDate(false);
+    setShowStartTime(false);
+    setShowEndDate(false);
+    setShowEndTime(false);
+  };
+
   const handleStartDateChange = (event: any, selectedDate?: Date) => {
-    setShowStartDate(Platform.OS === 'ios');
-    setShowStartTime(Platform.OS === 'ios');
+    // Dismiss the picker in all cases
+    setShowStartDate(false);
+
+    // If the selection was canceled or dismissed without a date
+    if (event.type === 'dismissed' || !selectedDate) {
+      return;
+    }
 
     if (selectedDate) {
       const currentStartDate = new Date(startDate);
 
-      // If changing date, preserve the time
-      if (showStartDate) {
-        currentStartDate.setFullYear(selectedDate.getFullYear());
-        currentStartDate.setMonth(selectedDate.getMonth());
-        currentStartDate.setDate(selectedDate.getDate());
-      }
-
-      // If changing time, preserve the date
-      if (showStartTime) {
-        currentStartDate.setHours(selectedDate.getHours());
-        currentStartDate.setMinutes(selectedDate.getMinutes());
-      }
+      // Update date parts while preserving time
+      currentStartDate.setFullYear(selectedDate.getFullYear());
+      currentStartDate.setMonth(selectedDate.getMonth());
+      currentStartDate.setDate(selectedDate.getDate());
 
       setStartDate(currentStartDate);
 
       // If end date is now before start date, adjust it
-      if (endDate < currentStartDate) {
+      if (endDate < currentStartDate && type === 'event') {
+        // Set end date 1 hour after start date
+        setEndDate(new Date(currentStartDate.getTime() + 60 * 60 * 1000));
+      }
+    }
+  };
+
+  const handleStartTimeChange = (event: any, selectedDate?: Date) => {
+    // Dismiss the picker in all cases
+    setShowStartTime(false);
+
+    // If the selection was canceled or dismissed without a time
+    if (event.type === 'dismissed' || !selectedDate) {
+      return;
+    }
+
+    if (selectedDate) {
+      const currentStartDate = new Date(startDate);
+
+      // Update time parts while preserving date
+      currentStartDate.setHours(selectedDate.getHours());
+      currentStartDate.setMinutes(selectedDate.getMinutes());
+
+      setStartDate(currentStartDate);
+
+      // If end date is now before start date, adjust it
+      if (endDate < currentStartDate && type === 'event') {
         // Set end date 1 hour after start date
         setEndDate(new Date(currentStartDate.getTime() + 60 * 60 * 1000));
       }
@@ -154,32 +208,105 @@ const TaskModal = ({ visible, onClose, onSave, task, isGoogleCalendarLinked }: T
   };
 
   const handleEndDateChange = (event: any, selectedDate?: Date) => {
-    setShowEndDate(Platform.OS === 'ios');
-    setShowEndTime(Platform.OS === 'ios');
+    // Dismiss the picker in all cases
+    setShowEndDate(false);
+
+    // If the selection was canceled or dismissed without a date
+    if (event.type === 'dismissed' || !selectedDate) {
+      return;
+    }
 
     if (selectedDate) {
       const currentEndDate = new Date(endDate);
 
-      // If changing date, preserve the time
-      if (showEndDate) {
-        currentEndDate.setFullYear(selectedDate.getFullYear());
-        currentEndDate.setMonth(selectedDate.getMonth());
-        currentEndDate.setDate(selectedDate.getDate());
-      }
+      // Update date parts while preserving time (for events)
+      // For tasks, set to end of day
+      currentEndDate.setFullYear(selectedDate.getFullYear());
+      currentEndDate.setMonth(selectedDate.getMonth());
+      currentEndDate.setDate(selectedDate.getDate());
 
-      // If changing time, preserve the date
-      if (showEndTime) {
-        currentEndDate.setHours(selectedDate.getHours());
-        currentEndDate.setMinutes(selectedDate.getMinutes());
+      if (type === 'task') {
+        // For tasks, always set to end of day (23:59:59)
+        currentEndDate.setHours(23, 59, 59, 0);
       }
 
       setEndDate(currentEndDate);
     }
   };
 
+  const handleEndTimeChange = (event: any, selectedDate?: Date) => {
+    // Dismiss the picker in all cases
+    setShowEndTime(false);
+
+    // If the selection was canceled or dismissed without a time
+    if (event.type === 'dismissed' || !selectedDate) {
+      return;
+    }
+
+    if (selectedDate && type === 'event') {
+      const currentEndDate = new Date(endDate);
+
+      // Update time parts while preserving date
+      currentEndDate.setHours(selectedDate.getHours());
+      currentEndDate.setMinutes(selectedDate.getMinutes());
+
+      setEndDate(currentEndDate);
+    }
+  };
+
+  // Function to render date/time picker with backdrop
+  const renderDateTimePicker = (
+    show: boolean,
+    mode: 'date' | 'time',
+    value: Date,
+    onChange: (event: any, date?: Date) => void
+  ) => {
+    if (!show) return null;
+
+    // For iOS, render inside a modal with backdrop
+    if (Platform.OS === 'ios') {
+      return (
+        <Modal visible={true} transparent animationType="fade">
+          <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' }}>
+            <View style={{ backgroundColor: '#2d2d2d', borderTopLeftRadius: 10, borderTopRightRadius: 10, padding: 10 }}>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', padding: 10 }}>
+                <TouchableOpacity onPress={() => onChange({ type: 'dismissed' }, undefined)}>
+                  <Text style={{ color: '#14b8a6', fontSize: 16 }}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity onPress={() => onChange({ type: 'set' }, value)}>
+                  <Text style={{ color: '#14b8a6', fontSize: 16 }}>Done</Text>
+                </TouchableOpacity>
+              </View>
+              <DateTimePicker
+                value={value}
+                mode={mode}
+                display="spinner"
+                onChange={(e, d) => d && onChange(e, d)}
+                themeVariant="dark"
+                style={{ backgroundColor: '#2d2d2d' }}
+              />
+            </View>
+          </View>
+        </Modal>
+      );
+    }
+
+    // For Android, use the standard component
+    return (
+      <DateTimePicker
+        value={value}
+        mode={mode}
+        display="default"
+        onChange={onChange}
+        themeVariant="dark"
+      />
+    );
+  };
+
   return (
     <Modal visible={visible} transparent animationType="fade">
       <BlurView intensity={50} className="flex-1 justify-center items-center bg-black/60">
+
         <View className="w-[90%] max-h-[85%] bg-[#1c1c1c] rounded-2xl overflow-hidden">
           <View className="flex-row justify-between items-center bg-teal-700 p-4">
             <Text className="text-white text-lg font-bold">
@@ -269,7 +396,7 @@ const TaskModal = ({ visible, onClose, onSave, task, isGoogleCalendarLinked }: T
               </View>
             )}
 
-            {/* Time Fields */}
+            {/* Start Date & Time (events only) */}
             {type === 'event' && (
               <View className="mb-4">
                 <Text className="text-white mb-2 text-base">
@@ -279,7 +406,10 @@ const TaskModal = ({ visible, onClose, onSave, task, isGoogleCalendarLinked }: T
                 {/* Date Selector */}
                 <TouchableOpacity
                   className="flex-row items-center bg-[#2d2d2d] p-3 rounded-lg mb-2"
-                  onPress={() => setShowStartDate(true)}
+                  onPress={() => {
+                    dismissPickers();
+                    setShowStartDate(true);
+                  }}
                 >
                   <Feather name="calendar" size={20} color="#14b8a6" />
                   <Text className="ml-2 text-white text-base">
@@ -288,20 +418,22 @@ const TaskModal = ({ visible, onClose, onSave, task, isGoogleCalendarLinked }: T
                 </TouchableOpacity>
 
                 {/* Time Selector (for events) */}
-                {type === 'event' && (
-                  <TouchableOpacity
-                    className="flex-row items-center bg-[#2d2d2d] p-3 rounded-lg mb-2"
-                    onPress={() => setShowStartTime(true)}
-                  >
-                    <Feather name="clock" size={20} color="#14b8a6" />
-                    <Text className="ml-2 text-white text-base">
-                      {format(startDate, 'h:mm a')}
-                    </Text>
-                  </TouchableOpacity>
-                )}
+                <TouchableOpacity
+                  className="flex-row items-center bg-[#2d2d2d] p-3 rounded-lg mb-2"
+                  onPress={() => {
+                    dismissPickers();
+                    setShowStartTime(true);
+                  }}
+                >
+                  <Feather name="clock" size={20} color="#14b8a6" />
+                  <Text className="ml-2 text-white text-base">
+                    {format(startDate, 'h:mm a')}
+                  </Text>
+                </TouchableOpacity>
               </View>
             )}
 
+            {/* End Date & Time / Due Date */}
             <View className="mb-4">
               <Text className="text-white mb-2 text-base">
                 {type === 'task' ? 'Due Date' : 'End Date & Time'}
@@ -310,7 +442,10 @@ const TaskModal = ({ visible, onClose, onSave, task, isGoogleCalendarLinked }: T
               {/* Date Selector */}
               <TouchableOpacity
                 className="flex-row items-center bg-[#2d2d2d] p-3 rounded-lg mb-2"
-                onPress={() => setShowEndDate(true)}
+                onPress={() => {
+                  dismissPickers();
+                  setShowEndDate(true);
+                }}
               >
                 <Feather name="calendar" size={20} color="#14b8a6" />
                 <Text className="ml-2 text-white text-base">
@@ -318,16 +453,21 @@ const TaskModal = ({ visible, onClose, onSave, task, isGoogleCalendarLinked }: T
                 </Text>
               </TouchableOpacity>
 
-              {/* Time Selector */}
-              <TouchableOpacity
-                className="flex-row items-center bg-[#2d2d2d] p-3 rounded-lg mb-2"
-                onPress={() => setShowEndTime(true)}
-              >
-                <Feather name="clock" size={20} color="#14b8a6" />
-                <Text className="ml-2 text-white text-base">
-                  {format(endDate, 'h:mm a')}
-                </Text>
-              </TouchableOpacity>
+              {/* Time Selector (for events only) */}
+              {type === 'event' && (
+                <TouchableOpacity
+                  className="flex-row items-center bg-[#2d2d2d] p-3 rounded-lg mb-2"
+                  onPress={() => {
+                    dismissPickers();
+                    setShowEndTime(true);
+                  }}
+                >
+                  <Feather name="clock" size={20} color="#14b8a6" />
+                  <Text className="ml-2 text-white text-base">
+                    {format(endDate, 'h:mm a')}
+                  </Text>
+                </TouchableOpacity>
+              )}
             </View>
 
             {/* Save Button */}
@@ -356,49 +496,11 @@ const TaskModal = ({ visible, onClose, onSave, task, isGoogleCalendarLinked }: T
             )}
           </ScrollView>
 
-          {/* Date Pickers (hidden by default) */}
-          {showStartDate && (
-            <DateTimePicker
-              value={startDate}
-              mode="date"
-              display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-              onChange={handleStartDateChange}
-              themeVariant="dark"
-            />
-          )}
-
-          {showStartTime && type === 'event' && (
-            <DateTimePicker
-              value={startDate}
-              mode="time"
-              is24Hour={false}
-              display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-              onChange={handleStartDateChange}
-              themeVariant="dark"
-            />
-          )}
-
-          {showEndDate && (
-            <DateTimePicker
-              value={endDate}
-              mode="date"
-              minimumDate={type === 'event' ? startDate : undefined}
-              display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-              onChange={handleEndDateChange}
-              themeVariant="dark"
-            />
-          )}
-
-          {showEndTime && (
-            <DateTimePicker
-              value={endDate}
-              mode="time"
-              is24Hour={false}
-              display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-              onChange={handleEndDateChange}
-              themeVariant="dark"
-            />
-          )}
+          {/* Date/Time Pickers (shown conditionally using the new rendering approach) */}
+          {renderDateTimePicker(showStartDate, 'date', startDate, handleStartDateChange)}
+          {renderDateTimePicker(showStartTime, 'time', startDate, handleStartTimeChange)}
+          {renderDateTimePicker(showEndDate, 'date', endDate, handleEndDateChange)}
+          {renderDateTimePicker(showEndTime, 'time', endDate, handleEndTimeChange)}
         </View>
       </BlurView>
     </Modal>
