@@ -1,8 +1,9 @@
 import React from 'react';
-import { View, Text } from 'react-native';
+import { View, Text, Alert, TouchableOpacity } from 'react-native';
 import { format } from 'date-fns';
 import { TaskItemData } from '@contexts/TasksContext';
-import { MaterialIcons, FontAwesome5, Ionicons } from '@expo/vector-icons';
+import { MaterialIcons, FontAwesome5, Ionicons, Feather } from '@expo/vector-icons';
+import Swipeable from 'react-native-gesture-handler/ReanimatedSwipeable';
 
 // Function to determine the appropriate icon for a task
 export const getTaskIcon = (task: TaskItemData) => {
@@ -33,7 +34,7 @@ const getPriorityColor = (priority: number) => {
 // Helper function to get priority indicator
 const getPriorityIndicator = (priority: number) => {
   const color = getPriorityColor(priority);
-  
+
   if (priority >= 8) {
     return (
       <View className="absolute -top-1 -right-1 z-10">
@@ -46,52 +47,97 @@ const getPriorityIndicator = (priority: number) => {
 
 type TaskItemProps = {
   itemData: TaskItemData;
+  onEdit: (task: TaskItemData) => void;
+  onDelete: (taskId: string) => void;
 };
 
-const TaskItem = ({ itemData }: TaskItemProps) => {
+const TaskItem = ({ itemData, onEdit, onDelete }: TaskItemProps) => {
   const priorityColor = getPriorityColor(itemData.priority);
   const borderStyle = { borderLeftWidth: 4, borderLeftColor: priorityColor };
-  
+
+  // Handler for delete action
+  const handleDelete = () => {
+    Alert.alert(
+      "Delete Item",
+      `Are you sure you want to delete "${itemData.title}"? This will remove it from your Google Calendar.`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          onPress: () => onDelete(itemData.id),
+          style: "destructive"
+        }
+      ]
+    );
+  };
+
+  // Render right actions (edit & delete buttons)
+  const renderRightActions = () => {
+    return (
+      <View className="flex-row mb-2 mr-3 mt-0.5">
+        <TouchableOpacity
+          className="bg-amber-600 justify-center items-center w-16"
+          onPress={() => onEdit(itemData)}
+        >
+          <Feather name="edit" size={22} color="white" />
+        </TouchableOpacity>
+        <TouchableOpacity
+          className="bg-red-600 justify-center items-center w-16 rounded-r-lg"
+          onPress={handleDelete}
+        >
+          <Feather name="trash" size={22} color="white" />
+        </TouchableOpacity>
+      </View>
+    );
+  };
+
   return (
-    <View className='flex flex-row'>
-      <View className='w-1/5 flex flex-col items-end justify-start mr-2'>
-        <Text className="text-gray-400 text-xs">
-          {itemData.isTask ? "Task" : format(new Date(itemData.startTime), 'MMM d')}
-        </Text>
-        <Text className="text-gray-400 text-xs ml-2">
-          {itemData.isTask && itemData.endTime ? 
-            `Due: ${format(new Date(itemData.endTime), 'MMM d')}` : 
-            format(new Date(itemData.startTime), 'h:mm a')}
-        </Text>
-        <View className="mt-1 flex-row items-center">
-          <Text style={{color: priorityColor}} className="text-xs font-medium">
-            P{itemData.priority}
+    <Swipeable renderRightActions={renderRightActions} overshootRight={false} friction={1} leftThreshold={40}>
+      <View className='flex flex-row'>
+        <View className='w-1/5 flex flex-col items-end justify-start mr-2'>
+          <Text className="text-gray-400 text-xs">
+            {itemData.isTask ? "Task" : format(new Date(itemData.startTime), 'MMM d')}
           </Text>
+          <Text className="text-gray-400 text-xs ml-2">
+            {itemData.isTask && itemData.endTime ?
+              `Due: ${format(new Date(itemData.endTime), 'MMM d')}` :
+              format(new Date(itemData.startTime), 'h:mm a')}
+          </Text>
+          <View className="mt-1 flex-row items-center">
+            <Text style={{color: priorityColor}} className="text-xs font-medium">
+              P{itemData.priority}
+            </Text>
+          </View>
+        </View>
+        <View
+          className="flex flex-row w-3/4 bg-stone-800 rounded-lg px-3 mt-0.5 py-2 mb-2 relative"
+          style={borderStyle}
+        >
+          {getPriorityIndicator(itemData.priority)}
+          <View className="rounded-full bg-opacity-20 justify-center">
+            {getTaskIcon(itemData)}
+          </View>
+          <View className='ml-2 flex-1'>
+            <Text
+              className="font-medium"
+              style={{color: itemData.priority >= 7 ? "#ffffff" : "#e5e5e5"}}
+              numberOfLines={2}
+              ellipsizeMode="tail"
+            >
+              {itemData.title}
+            </Text>
+            <Text className="text-gray-400 text-sm" numberOfLines={3} ellipsizeMode="tail">
+              {itemData.description}
+            </Text>
+            {itemData.location && (
+              <Text className="text-gray-500 text-xs mt-1">
+                📍 {itemData.location}
+              </Text>
+            )}
+          </View>
         </View>
       </View>
-      <View 
-        className="flex flex-row w-3/4 bg-stone-800 rounded-lg px-3 py-2 mb-2 relative"
-        style={borderStyle}
-      >
-        {getPriorityIndicator(itemData.priority)}
-        <View className="rounded-full bg-opacity-20 justify-center">
-          {getTaskIcon(itemData)}
-        </View>
-        <View className='ml-2 flex-1'>
-          <Text 
-            className="font-medium" 
-            style={{color: itemData.priority >= 7 ? "#ffffff" : "#e5e5e5"}}
-            numberOfLines={2} 
-            ellipsizeMode="tail"
-          >
-            {itemData.title}
-          </Text>
-          <Text className="text-gray-400 text-sm" numberOfLines={3} ellipsizeMode="tail">
-            {itemData.description}
-          </Text>
-        </View>
-      </View>
-    </View>
+    </Swipeable>
   );
 };
 

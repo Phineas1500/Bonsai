@@ -22,7 +22,7 @@ export default function GoogleSignIn() {
     iosClientId: process.env.EXPO_PUBLIC_IOS_CLIENT_ID,
     androidClientId: process.env.EXPO_PUBLIC_ANDROID_CLIENT_ID,
     webClientId: process.env.EXPO_PUBLIC_CLIENT_ID,
-    scopes: ['profile', 'email', 'https://www.googleapis.com/auth/calendar', 'https://www.googleapis.com/auth/tasks'], // Add Calendar scope
+    scopes: ['profile', 'email', 'https://www.googleapis.com/auth/calendar', 'https://www.googleapis.com/auth/tasks', 'https://www.googleapis.com/auth/calendar.events'], // Add Calendar scope
     redirectUri: AuthSession.makeRedirectUri()
   });
 

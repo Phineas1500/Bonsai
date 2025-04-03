@@ -20,12 +20,22 @@ const TasksSnapshot = () => {
   const SHOW_TASKS = 3;
   const upcomingTasks = tasks.slice(0, SHOW_TASKS);
 
+  // In the snapshot, these are disabled/no-op functions as we don't want to edit directly
+  // from the snapshot - users should go to the tasks page for full functionality
+  const noopEdit = () => {};
+  const noopDelete = () => {};
+
   return (
     <View className="py-4">
       {upcomingTasks.length > 0 ? (
         <View className='w-full'>
           {upcomingTasks.map(task => (
-            <TaskItem key={task.id} itemData={task} />
+            <TaskItem
+              key={task.id}
+              itemData={task}
+              onEdit={noopEdit}
+              onDelete={noopDelete}
+            />
           ))}
           <TouchableOpacity onPress={() => router.push('/screens/tasks')}>
             {tasks.length > SHOW_TASKS + 1 ? (
