@@ -2,25 +2,35 @@ import React, { createContext, useContext, useState, useRef, useEffect } from "r
 import * as Notifications from "expo-notifications";
 import * as Device from "expo-device";
 import Constants from "expo-constants";
-import { useUser } from "./UserContext";
+import { UserInfo, useUser } from "./UserContext";
 import { Platform, TaskCanceller } from "react-native";
 import { db } from 'firebaseConfig';
 import { addDoc, collection, deleteDoc, doc, getDoc, getDocs, QuerySnapshot, setDoc, updateDoc } from "firebase/firestore";
 import { useTasks } from "./TasksContext";
 import { cancelLocalNotification, scheduleLocalNotification } from "../components/utils/notificationAPI";
 import { NotificationPayload } from "../components/utils/notificationAPI";
+import { getUserByEmail } from "../components/utils/userManagement";
 
 interface NotificationContextType {
     enableNotifications: () => Promise<void>;
     expoPushToken: string | null;
     notifications: Notifications.Notification[];
     error: Error | null;
-};
+    updateNotificationPreferences: (newPrefs: Partial<NotificationPreferences>, userEmail: string) => Promise<void>;
+    notificationPreferences: NotificationPreferences;
+}
 
 export interface TaskNotification {
   taskId : string;
   notificationId : string;
-  triggerTime: string //ISO string
+  triggerTime: string; //ISO string
+}
+
+//have to make sure to keep this synced with the shape of user info
+export interface NotificationPreferences {
+  notificationsEnabled : boolean;
+  reminderOffsets : number[];
+  triggers : string [];
 }
 
 const NotificationContext = createContext<NotificationContextType | undefined>(undefined);
@@ -34,12 +44,21 @@ export function NotificationProvider({ children }: { children: React.ReactNode})
     const notificationListener = useRef<Notifications.EventSubscription>();
     const responseListener = useRef<Notifications.EventSubscription>();
 
-    const {userInfo, setUserInfo} = useUser();
+    const {userInfo, updateUserInfo} = useUser();
 
     const { tasks, isLoading } = useTasks();
 
+    const DEFAULT_NOTIFICATION_PREFERENCES: NotificationPreferences = {
+      notificationsEnabled: false,
+      reminderOffsets: [0],
+      triggers: ["tasks"]
+    }
+
+    // do stuff on load
     useEffect(() => {
         getPushToken();
+
+        fetchNotificationPreferences();
     }, []);
 
     //add new listeners if push token changes
@@ -78,14 +97,100 @@ export function NotificationProvider({ children }: { children: React.ReactNode})
       updateTaskNotifications();
     }, [tasks, userInfo?.email]);
 
+    /**
+     * fetch the server state of notification preferences for a user and update the
+     * local user info context with that info. If the user doesn't have any notification
+     * preferences then create default preferences
+     * 
+     * @returns 
+     */
+    const fetchNotificationPreferences = async () => {
+      try {
+        //if no user email then can't fetch notifications yet
+        if (!userInfo?.email) return;
+
+        //check if user has notification preferences set 
+        const userDoc = await getUserByEmail(userInfo.email);
+        if (!userDoc) return;
+
+        const userInfoSnap: UserInfo = userDoc.data() as UserInfo;
+        const preferences = userInfoSnap.notificationPreferences;
+        if (preferences) {
+          //update local user info context 
+          updateUserInfo({
+            notificationPreferences: {
+              notificationsEnabled: preferences.notificationsEnabled,
+              reminderOffsets: preferences.reminderOffsets,
+              triggers: preferences.triggers
+            }
+          })
+        } else {
+          //if user doesn't have prefernces, create default ones 
+          updateNotificationPreferences(DEFAULT_NOTIFICATION_PREFERENCES, userInfo.email);
+        }
+
+      } catch (error: any) {
+        console.error("Error fetching notification preferences", error);
+      }
+    }
+
+    /**
+     * updates the notification preferences locally for the user context and also in the database
+     * 
+     * @param newPreferences 
+     * @param email 
+     */
+    const updateNotificationPreferences = async (newPreferences : Partial<NotificationPreferences>, email: string) => {
+      try {
+        const currentPrefs = userInfo?.notificationPreferences ?? DEFAULT_NOTIFICATION_PREFERENCES;
+
+        const mergedPrefs: NotificationPreferences = {
+          ...currentPrefs,
+          ...newPreferences
+        }
+
+        updateUserInfo({
+          notificationPreferences: mergedPrefs
+        })
+
+        const docRef = doc(db, "users", email);
+            await updateDoc(docRef, {
+              notificationPreferences: mergedPrefs
+             })
+      } catch (error: any) {
+        console.error("Error updating notification preferences", error);
+      }
+    }
+
+    /**
+     * Remove all currently scheduled notifications for tasks. Check if notifications should be scheduled and schedule if so.
+     * 
+     * @returns 
+     */
     const updateTaskNotifications = async () => {
       //if user hasn't logged in yet then don't do anything
-      console.log(userInfo);
       if (!userInfo?.email) return;
 
 
       //remove all current scheduled tasks for the user
       await removeScheduledNotifications(userInfo.email);
+
+      //if the user has notifications disabled then don't notify of anything
+      const notificationPreferences = userInfo.notificationPreferences;
+      if (!notificationPreferences) {
+        console.error("user doesn't have any notification preferences")
+        return;
+      }
+      if (!notificationPreferences.notificationsEnabled) {
+        console.log("User has notifications disabled");
+        return;
+      }
+
+      //if the user shouldn't be notified of tasks, then don't do it
+      if (!notificationPreferences.triggers.includes("tasks")) {
+        console.log("User doesn't want to be notified about tasks");
+        return;
+      }
 
       //for each task, add a notification for that task
       const threads = tasks.map(async (taskItemData) => {
@@ -244,6 +349,14 @@ export function NotificationProvider({ children }: { children: React.ReactNode})
             await storePushNotificationToken(pushTokenString, userEmail);
             setExpoPushToken(pushTokenString);
 
+            //mark notifications as enabled
+            const currentPrefs = userInfo.notificationPreferences ?? DEFAULT_NOTIFICATION_PREFERENCES;
+
+            updateNotificationPreferences({
+              ...currentPrefs,
+              notificationsEnabled: true
+            }, userInfo.email);
+
           } catch (e: unknown) {
             handleRegistrationError(`${e}`);
           }
@@ -270,7 +383,15 @@ export function NotificationProvider({ children }: { children: React.ReactNode})
     }
 
     return (
-        <NotificationContext.Provider value={{enableNotifications, expoPushToken, notifications, error}}>
+        <NotificationContext.Provider 
+        value={{
+          enableNotifications, 
+          expoPushToken, 
+          notifications, 
+          error, 
+          updateNotificationPreferences,
+          notificationPreferences: userInfo?.notificationPreferences ?? DEFAULT_NOTIFICATION_PREFERENCES,
+        }}>
             {children}
         </NotificationContext.Provider>
     );

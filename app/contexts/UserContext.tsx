@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useEffect, useState, ReactNode } from "react";
+import { NotificationPreferences } from "./NotificationContext";
 
 export interface UserInfo {
     username: string;
@@ -14,6 +15,7 @@ export interface UserInfo {
         refresh_token?: string;
         expires_at?: number; // Add expiration timestamp
     }
+    notificationPreferences?: NotificationPreferences;
 };
 
 // Define the type for context

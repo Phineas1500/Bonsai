@@ -1,10 +1,10 @@
-import { View, Text, Button, TouchableOpacity, Alert } from 'react-native';
+import { View, Text, Button, TouchableOpacity, Alert, Switch } from 'react-native';
 import { useEffect, useState } from 'react';
 import * as AuthSession from 'expo-auth-session';
 import * as Google from 'expo-auth-session/providers/google';
 import { useUser } from '@contexts/UserContext';
 import React from 'react';
-import { useNotification } from '../contexts/NotificationContext';
+import { NotificationPreferences, useNotification } from '../contexts/NotificationContext';
 import { NotificationPayload, sendPushNotification } from '../components/utils/notificationAPI';
 import { router } from 'expo-router';
 import { auth } from '@/firebaseConfig';
@@ -37,7 +37,7 @@ export default function Settings() {
         ]
     });
 
-    const {enableNotifications, expoPushToken, notifications, error} = useNotification();
+    const {enableNotifications, expoPushToken, notifications, error, updateNotificationPreferences, notificationPreferences} = useNotification();
 
     useEffect(() => {
         if (response?.type === 'success') {
@@ -94,6 +94,48 @@ export default function Settings() {
         }
     };
 
+    //handle toggling notifications
+    const [switchEnabled, setSwitchEnabled] = useState(false);
+
+    // set switch to reflect if notifications are enabled 
+    useEffect(() => {
+
+        const isEnabled = notificationPreferences.notificationsEnabled;
+        setSwitchEnabled(isEnabled);
+
+    }, [userInfo])
+
+    const toggleNotifications = () => {
+        if (!userInfo?.email) {
+            console.error("User email isn't available");
+            return;
+        }
+
+        const newVal : boolean = !switchEnabled;
+        const newPrefs : Partial<NotificationPreferences> = {
+            notificationsEnabled: newVal
+        }
+        updateNotificationPreferences({ ...newPrefs }, userInfo?.email);
+    }
+
+    //handle selecting the type of notifications
+    const currentTriggers = notificationPreferences.triggers
+
+    const availableTriggers = ["tasks", "friend-requests"]
+
+    const toggleTrigger = (trigger: string) => {
+        if (!userInfo?.email) {
+            console.error("Unable to get user info");
+            return;
+        }
+
+        const updatedTriggers = currentTriggers.includes(trigger)
+          ? currentTriggers.filter(t => t !== trigger)
+          : [...currentTriggers, trigger];
+        
+        updateNotificationPreferences({ triggers: updatedTriggers }, userInfo.email);
+      };
+
     return (
         <>
             <View className="flex-1 flex-col items-start bg-stone-950 p-6">
@@ -126,6 +168,34 @@ export default function Settings() {
                         title="Connect Google Calendar"
                         onPress={() => promptAsync()}
                     />
+                </View>
+
+                <View className="w-full mb-6">
+                    <Text className="text-white text-lg mb-2">Notifications</Text>
+                    <View className="flex-row items-center justify-between mb-4">
+                        <Text className="text-white text-sm py-2">Notifications enabled:</Text>
+                        <Switch
+                            trackColor={{ false: "#ccc", true: "#81b0ff" }}
+                            thumbColor={switchEnabled ? "#007aff" : "#f4f3f4"}
+                            ios_backgroundColor="#ccc"
+                            onValueChange={toggleNotifications}
+                            value={switchEnabled}
+                        />
+                        
+                    </View>
+                    <Text className="text-white">What do you want to be notified about?</Text>
+                    {availableTriggers.map(trigger => (
+                        <View key={trigger} className="flex-row items-center justify-between py-2">
+                        <Text className="text-white capitalize">{trigger}</Text>
+                        <Switch
+                            value={currentTriggers.includes(trigger)}
+                            onValueChange={() => toggleTrigger(trigger)}
+                            trackColor={{ false: "#ccc", true: "#81b0ff" }}
+                            thumbColor={currentTriggers.includes(trigger) ? "#007aff" : "#f4f3f4"}
+                        />
+                    </View>
+                    ))}
+
                 </View>
 
                 <ChangeUsernameModal
