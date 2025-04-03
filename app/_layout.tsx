@@ -31,9 +31,9 @@ export default function RootLayout() {
   );
 
   return (
-    <NotificationProvider>
-      <UserProvider>
+    <UserProvider>
         <TasksProvider>
+          <NotificationProvider>
           {shouldShowNavbar && <Navbar />}
           <Stack
             screenOptions={{
@@ -41,8 +41,8 @@ export default function RootLayout() {
               animation: 'none',
             }}
           />
+          </NotificationProvider>
         </TasksProvider>
-      </UserProvider>
-    </NotificationProvider>
+    </UserProvider>
   );
 }

@@ -84,6 +84,8 @@ export function TasksProvider({ children }: { children: ReactNode }) {
 
       console.log("Processed task list:", newTaskList);
       setTasks(newTaskList);
+
+      console.log("user info:", userInfo);
     } catch (error: any) {
       console.error("Error fetching calendar events:", error);
       setError("Failed to fetch calendar events");

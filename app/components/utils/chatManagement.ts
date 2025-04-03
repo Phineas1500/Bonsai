@@ -1,5 +1,5 @@
 import { db } from 'firebaseConfig';
-import { doc, addDoc, serverTimestamp, collection, where, query, getDocs, getDoc, setDoc, orderBy, deleteDoc } from 'firebase/firestore';
+import { doc, addDoc, collection, where, query, getDocs, getDoc, setDoc, orderBy, deleteDoc } from 'firebase/firestore';
 import { Message } from '@components/chat';
 
 /**

@@ -5,6 +5,7 @@ export interface UserInfo {
     email: string;
     usesGoogle: boolean;
     id_token?: string;
+    expoPushToken?: string;
     googleAuth?: {
         access_token?: string;
     };

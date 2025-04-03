@@ -5,6 +5,8 @@ import * as AuthSession from 'expo-auth-session';
 import * as Google from 'expo-auth-session/providers/google';
 import { useUser } from '@contexts/UserContext';
 import React from 'react';
+import { useNotification } from '../contexts/NotificationContext';
+import { NotificationPayload, sendPushNotification } from '../components/utils/notificationAPI';
 
 export default function Settings() {
 
@@ -29,6 +31,8 @@ export default function Settings() {
         ]
     });
 
+    const {enableNotifications, expoPushToken, notifications, error} = useNotification();
+
     useEffect(() => {
         if (response?.type === 'success') {
             const authObj = response.authentication;
@@ -49,6 +53,19 @@ export default function Settings() {
         }
     }, [response]);
 
+    const showNotification = async () => {
+
+        const myEmail = userInfo?.email;
+        if (!myEmail) return;
+
+        const hello: NotificationPayload = {
+            email: userInfo.email,
+            title: "Hello!",
+            body: "This is a hello message",
+            data: {}
+        }
+        sendPushNotification(hello);
+    }
 
     return (
         <>
@@ -61,6 +78,20 @@ export default function Settings() {
                     title="Connect Google Calendar"
                     onPress={() => promptAsync()}
                 />
+                <Button
+                    title="Enable Notifications"
+                    onPress={() => enableNotifications()}
+                />
+                <Button
+                    title="Show notification"
+                    onPress={() => showNotification()}
+                />
+                <Text className='text-white'>
+                    push token: {expoPushToken} 
+                </Text>
+                <Text className='text-white'>
+                    notifications: {JSON.stringify(notifications)}
+                </Text>
             </View>
         </>
 
