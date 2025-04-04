@@ -31,6 +31,7 @@ export default function Chat() {
   const [taskPlanContext, setTaskPlanContext] = useState<string>('');
   const [taskPlanData, setTaskPlanData] = useState<any>(null);
   const [showTaskPlanConfirmation, setShowTaskPlanConfirmation] = useState(false);
+  const [uploadedContent, setUploadedContent] = useState<{text: string, filename: string} | null>(null);
 
   const scrollToBottom = () => {
     if (scrollViewRef.current) {
@@ -601,8 +602,129 @@ export default function Chat() {
 
   // Handle sending a message
   const handleSend = async () => {
-    if (!message.trim() || !chatId) return;
+    if ((!message.trim() && !uploadedContent) || !chatId) return;
 
+    // If we have uploaded content, create and display a user message about it
+    if (uploadedContent) {
+      const userMessage = {
+        id: Date.now().toString(),
+        text: message.trim() || `📄 Uploaded: ${uploadedContent.filename}`,
+        sender: userInfo?.email || "",
+        timestamp: new Date(),
+      };
+
+      try {
+        await sendMessage(chatId, userMessage);
+      } catch (error) {
+        console.log("Error sending message:", error);
+      }
+
+      setMessages(prev => [...prev, userMessage]);
+      setMessage('');
+      setIsLoading(true);
+
+      try {
+        // Analyze the PDF content with AI using the user's additional message as context
+        const contentToAnalyze = message.trim() 
+          ? `Here's my question about this file: ${message}\n\nFile content: ${uploadedContent.text}`
+          : `Extract any task planning information, calendars, schedules or events from this: ${uploadedContent.text}`;
+          
+        const analysis = await analyzeWithOpenAI(contentToAnalyze);
+        
+        // Process the response (existing code for handling different types of responses)
+        // Handle task planning content in PDFs
+        if (analysis.isTaskPlanning) {
+          setTaskPlanData(analysis.taskPlan);
+          
+          // Create a summary of the task plan
+          let summaryText = `I found a task plan in your file for "${analysis.taskPlan.title}":\n\n`;
+          
+          analysis.taskPlan.subtasks.forEach((subtask: any, index: number) => {
+            const startDate = format(parseISO(subtask.startTime), 'MMM d, h:mm a');
+            summaryText += `${index + 1}. ${subtask.title} (${startDate})\n`;
+          });
+          
+          summaryText += "\nWould you like me to add these items to your calendar?";
+          
+          const botResponse = {
+            id: (Date.now() + 1).toString(),
+            text: summaryText,
+            sender: 'bot',
+            timestamp: new Date()
+          };
+
+          try {
+            await sendMessage(chatId, botResponse);
+          } catch (error) {
+            console.log("Error syncing messages with the server:", error);
+          }
+
+          setMessages(prev => [...prev, botResponse]);
+          setShowTaskPlanConfirmation(true);
+        } 
+        // Process other types of responses as before
+        else if (analysis.isCalendarEvent && analysis.events && analysis.events.length > 0) {
+          setPendingEvents(analysis.events);
+          setCurrentEventIndex(0);
+          setShowEventConfirmation(true);
+        } else if (analysis.isCalendarSummaryRequest) {
+          const summaryText = await getCalendarSummary();
+
+          const botResponse = {
+            id: (Date.now() + 1).toString(),
+            text: summaryText,
+            sender: 'bot',
+            timestamp: new Date()
+          };
+
+          try {
+            await sendMessage(chatId, botResponse);
+          } catch (error) {
+            console.log("Error syncing messages with the server:", error);
+          }
+
+          setMessages(prev => [...prev, botResponse]);
+        } else {
+          const responseText = analysis.response;
+
+          const botResponse = {
+            id: (Date.now() + 1).toString(),
+            text: responseText,
+            sender: 'bot',
+            timestamp: new Date()
+          };
+
+          try {
+            await sendMessage(chatId, botResponse);
+          } catch (error) {
+            console.log("Error syncing messages with the server:", error);
+          }
+
+          setMessages(prev => [...prev, botResponse]);
+        }
+        
+        // Clear the uploaded content after processing
+        setUploadedContent(null);
+        
+      } catch (error) {
+        console.error("Error processing file:", error);
+
+        const errorMessage = {
+          id: (Date.now() + 1).toString(),
+          text: "Sorry, I encountered an error processing your file.",
+          sender: 'bot',
+          timestamp: new Date()
+        };
+
+        setMessages(prev => [...prev, errorMessage]);
+      } finally {
+        setIsLoading(false);
+      }
+      
+      return;
+    }
+
+    // Regular text message handling (existing code)
     const userMessage = {
       id: Date.now().toString(),
       text: message,
@@ -943,116 +1065,12 @@ export default function Chat() {
   // Update the handlePdfSelected function
   const handlePdfSelected = async (pdfText: string, filename: string) => {
     if (!chatId) return;
-
-    setIsLoading(true);
-
-    // Create a message to show the user what PDF was uploaded
-    const userMessage = {
-      id: Date.now().toString(),
-      text: `📄 Uploaded PDF: ${filename}`,
-      sender: userInfo?.email || "",
-      timestamp: new Date(),
-    };
-
-    try {
-      await sendMessage(chatId, userMessage);
-    } catch (error) {
-      console.log("Error sending message:", error);
-    }
-
-    setMessages(prev => [...prev, userMessage]);
-
-    try {
-      // Analyze the PDF content with AI
-      const analysis = await analyzeWithOpenAI(
-        `Extract any task planning information, calendars, schedules or events from this PDF: ${pdfText}`
-      );
-
-      // Handle task planning content in PDFs
-      if (analysis.isTaskPlanning) {
-        setTaskPlanData(analysis.taskPlan);
-        
-        // Create a summary of the task plan
-        let summaryText = `I found a task plan in your PDF for "${analysis.taskPlan.title}":\n\n`;
-        
-        analysis.taskPlan.subtasks.forEach((subtask: any, index: number) => {
-          const startDate = format(parseISO(subtask.startTime), 'MMM d, h:mm a');
-          summaryText += `${index + 1}. ${subtask.title} (${startDate})\n`;
-        });
-        
-        summaryText += "\nWould you like me to add these items to your calendar?";
-        
-        const botResponse = {
-          id: (Date.now() + 1).toString(),
-          text: summaryText,
-          sender: 'bot',
-          timestamp: new Date()
-        };
-
-        try {
-          await sendMessage(chatId, botResponse);
-        } catch (error) {
-          console.log("Error syncing messages with the server:", error);
-        }
-
-        setMessages(prev => [...prev, botResponse]);
-        setShowTaskPlanConfirmation(true);
-      } 
-      // Process other types of responses as before
-      else if (analysis.isCalendarEvent && analysis.events && analysis.events.length > 0) {
-        // Existing code for handling calendar events
-        setPendingEvents(analysis.events);
-        setCurrentEventIndex(0);
-        setShowEventConfirmation(true);
-      } else if (analysis.isCalendarSummaryRequest) {
-        const summaryText = await getCalendarSummary();
-
-        const botResponse = {
-          id: (Date.now() + 1).toString(),
-          text: summaryText,
-          sender: 'bot',
-          timestamp: new Date()
-        };
-
-        try {
-          await sendMessage(chatId, botResponse);
-        } catch (error) {
-          console.log("Error syncing messages with the server:", error);
-        }
-
-        setMessages(prev => [...prev, botResponse]);
-      } else {
-        const responseText = analysis.response;
-
-        const botResponse = {
-          id: (Date.now() + 1).toString(),
-          text: responseText,
-          sender: 'bot',
-          timestamp: new Date()
-        };
-
-        try {
-          await sendMessage(chatId, botResponse);
-        } catch (error) {
-          console.log("Error syncing messages with the server:", error);
-        }
-
-        setMessages(prev => [...prev, botResponse]);
-      }
-    } catch (error) {
-      console.error("Error processing PDF:", error);
-
-      const errorMessage = {
-        id: (Date.now() + 1).toString(),
-        text: "Sorry, I encountered an error processing your PDF.",
-        sender: 'bot',
-        timestamp: new Date()
-      };
-
-      setMessages(prev => [...prev, errorMessage]);
-    } finally {
-      setIsLoading(false);
-    }
+    
+    // Just store the content, don't send yet
+    setUploadedContent({
+      text: pdfText,
+      filename: filename
+    });
   };
 
   const handleConfirmTaskPlan = () => {
@@ -1093,6 +1111,11 @@ export default function Chat() {
     }
     
     setMessages(prev => [...prev, botResponse]);
+  };
+
+  // Add a function to clear uploaded content
+  const clearUploadedContent = () => {
+    setUploadedContent(null);
   };
 
   return (
@@ -1139,6 +1162,8 @@ export default function Chat() {
             fadeOutWelcome();
             scrollToBottom();
           }}
+          uploadedContent={uploadedContent}
+          clearUploadedContent={clearUploadedContent}
         />
       </View>
       {pendingEvents.length > 0 && currentEventIndex < pendingEvents.length && (
