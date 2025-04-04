@@ -240,7 +240,7 @@ export const sendFriendRequest = async (toUserEmail: string) => {
     sendPushNotification({
       email: sanitizedToEmail,
       title: 'New Friend Request',
-      body: `${fromUserData} has sent you a friend request.`,
+      body: `${fromUserData.username} has sent you a friend request.`,
       data: {}
     });
 
