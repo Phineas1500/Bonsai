@@ -137,7 +137,9 @@ export default function Chat() {
               
               For calendar requests:
               If a user is asking to add one or more events to their calendar, extract the details for each event in the user's local time zone (${Intl.DateTimeFormat().resolvedOptions().timeZone}) and respond with JSON in this format:
-              {"isCalendarEvent": true, "events": [{"title": "Event title", "description": "Event description", "location": "Event location", "startTime": "ISO string with timezone offset", "endTime": "ISO string with timezone offset"}, {...more events if mentioned...}]}
+              {"isCalendarEvent": true, "events": [{"title": "Event title", "description": "Event description", "location": "Event location", "startTime": "ISO string with timezone offset", "endTime": "ISO string with timezone offset", "allowReschedule": boolean}, {...more events if mentioned...}]}
+
+              Set "allowReschedule" to true if the user is flexible with the timing (phrases like "whenever I'm free", "find a time", "when available") and false if they specifically request an exact time.
 
               For calendar summary requests:
               If the user is specifically asking for their FULL schedule, agenda, or overview of ALL upcoming events (with phrases like "what's my entire schedule", "show me all my events", "what's my full calendar look like"), respond with:
@@ -290,11 +292,115 @@ export default function Chat() {
     return JSON.stringify(contextData, null, 2);
   };
 
-  // Function to add event to Google Calendar
+  // Check if a new event conflicts with existing events
+  const checkForConflicts = (startTime: string, endTime: string, existingTasks: any[]) => {
+    const newStart = new Date(startTime).getTime();
+    const newEnd = new Date(endTime).getTime();
+
+    // Filter to only calendar events (non-tasks) to check for time conflicts
+    const calendarEvents = existingTasks.filter(event => !event.isTask);
+    
+    // Check for any overlap with existing events
+    return calendarEvents.find(event => {
+      const eventStart = new Date(event.startTime).getTime();
+      const eventEnd = new Date(event.endTime).getTime();
+      
+      // Check for overlap: new event starts during existing event OR
+      // new event ends during existing event OR
+      // new event completely contains existing event
+      return (newStart >= eventStart && newStart < eventEnd) ||
+             (newEnd > eventStart && newEnd <= eventEnd) ||
+             (newStart <= eventStart && newEnd >= eventEnd);
+    });
+  };
+
+  // Find the next available time slot after a specific time
+  const findNextAvailableSlot = (startTime: string, duration: number, existingTasks: any[]) => {
+    // Convert inputs to milliseconds for easier calculation
+    let proposedStart = new Date(startTime).getTime();
+    const durationMs = duration * 60 * 1000; // duration in minutes to ms
+    
+    const calendarEvents = existingTasks.filter(event => !event.isTask);
+    
+    // Sort events by start time
+    const sortedEvents = [...calendarEvents].sort((a, b) => 
+      new Date(a.startTime).getTime() - new Date(b.startTime).getTime()
+    );
+    
+    let foundSlot = false;
+    let maxTries = 10; // Limit the number of attempts to find a slot
+    let tryCount = 0;
+    
+    while (!foundSlot && tryCount < maxTries) {
+      const proposedEnd = proposedStart + durationMs;
+      
+      // Check if this slot works
+      const conflict = sortedEvents.find(event => {
+        const eventStart = new Date(event.startTime).getTime();
+        const eventEnd = new Date(event.endTime).getTime();
+        
+        return (proposedStart >= eventStart && proposedStart < eventEnd) ||
+               (proposedEnd > eventStart && proposedEnd <= eventEnd) ||
+               (proposedStart <= eventStart && proposedEnd >= eventEnd);
+      });
+      
+      if (!conflict) {
+        // We found a slot!
+        foundSlot = true;
+      } else {
+        // Move to the end of the conflicting event and try again
+        proposedStart = new Date(conflict.endTime).getTime() + (15 * 60 * 1000); // Add 15 min buffer
+        tryCount++;
+      }
+    }
+    
+    if (foundSlot) {
+      // Convert back to ISO string
+      const newStartTime = new Date(proposedStart).toISOString();
+      const newEndTime = new Date(proposedStart + durationMs).toISOString();
+      return { newStartTime, newEndTime };
+    } else {
+      // Couldn't find a slot within reasonable attempts
+      return null;
+    }
+  };
+
+  // Update the addToCalendar function
+
   const addToCalendar = async (eventDetails: any) => {
     try {
       if (!userInfo?.calendarAuth?.access_token) {
         return "I need access to your Google Calendar to add events. Please sign in with Google first.";
+      }
+
+      // Check for conflicts with existing events
+      const conflict = checkForConflicts(eventDetails.startTime, eventDetails.endTime, tasks);
+
+      // If this is a user-specified time and there's a conflict, inform them
+      if (conflict && !eventDetails.allowReschedule) {
+        const conflictStart = format(parseISO(conflict.startTime), 'h:mm a');
+        const conflictEnd = format(parseISO(conflict.endTime), 'h:mm a');
+        
+        return `I couldn't schedule "${eventDetails.title}" at the requested time because you already have "${conflict.title}" from ${conflictStart} to ${conflictEnd}. Would you like me to suggest another time?`;
+      }
+      
+      // If we can reschedule, find the next available slot
+      if (conflict) {
+        // Calculate event duration in minutes
+        const originalStart = new Date(eventDetails.startTime);
+        const originalEnd = new Date(eventDetails.endTime);
+        const durationMinutes = (originalEnd.getTime() - originalStart.getTime()) / (60 * 1000);
+        
+        // Find next available slot
+        const nextSlot = findNextAvailableSlot(eventDetails.startTime, durationMinutes, tasks);
+        
+        if (!nextSlot) {
+          return `I couldn't find an available time slot for "${eventDetails.title}" in your schedule. Would you like to try a different day?`;
+        }
+        
+        // Update the event times to the available slot
+        eventDetails.startTime = nextSlot.newStartTime;
+        eventDetails.endTime = nextSlot.newEndTime;
       }
 
       // Create event object with task plan metadata if present
@@ -334,11 +440,16 @@ export default function Chat() {
         const eventDate = format(parseISO(eventDetails.startTime), 'MMMM do, yyyy');
         const eventTime = format(parseISO(eventDetails.startTime), 'h:mm a');
         
-        // Different message for task plan events
-        if (eventDetails.isTaskPlanEvent) {
-          return `I've added the task "${eventDetails.title}" to your calendar on ${eventDate} at ${eventTime}.`;
+        // Different message if we had to reschedule
+        if (conflict) {
+          return `I rescheduled "${eventDetails.title}" to ${eventDate} at ${eventTime} to avoid a conflict with your existing event "${conflict.title}".`;
         } else {
-          return `I've added "${eventDetails.title}" to your calendar on ${eventDate} at ${eventTime}.`;
+          // Normal success message
+          if (eventDetails.isTaskPlanEvent) {
+            return `I've added the task "${eventDetails.title}" to your calendar on ${eventDate} at ${eventTime}.`;
+          } else {
+            return `I've added "${eventDetails.title}" to your calendar on ${eventDate} at ${eventTime}.`;
+          }
         }
       } else {
         return "I had trouble adding that to your calendar. Please try again.";
@@ -346,6 +457,9 @@ export default function Chat() {
     } catch (error) {
       console.error("Error adding event to calendar:", error);
       return "I couldn't add that to your calendar. There might be an issue with your calendar access.";
+    } finally {
+      // Refresh tasks to get updated calendar data
+      refreshTasks();
     }
   };
 
@@ -715,6 +829,45 @@ export default function Chat() {
 
     setIsLoading(true);
     const currentEvent = pendingEvents[currentEventIndex];
+    
+    // Check for conflicts
+    const conflict = checkForConflicts(currentEvent.startTime, currentEvent.endTime, tasks);
+    
+    // If there's a conflict and we can't reschedule, show a message
+    if (conflict && !currentEvent.allowReschedule) {
+      const conflictStart = format(parseISO(conflict.startTime), 'h:mm a');
+      const conflictEnd = format(parseISO(conflict.endTime), 'h:mm a');
+      
+      const botResponse = {
+        id: Date.now().toString(),
+        text: `I couldn't add "${currentEvent.title}" because you already have "${conflict.title}" from ${conflictStart} to ${conflictEnd}. Would you like me to suggest another time?`,
+        sender: 'bot',
+        timestamp: new Date()
+      };
+      
+      try {
+        await sendMessage(chatId!, botResponse);
+      } catch (error) {
+        console.log("Error syncing messages with the server:", error);
+      }
+      
+      setMessages(prev => [...prev, botResponse]);
+      
+      // Move to next event or finish
+      if (currentEventIndex < pendingEvents.length - 1) {
+        setCurrentEventIndex(currentEventIndex + 1);
+      } else {
+        // All events processed
+        setShowEventConfirmation(false);
+        setPendingEvents([]);
+        setCurrentEventIndex(0);
+      }
+      
+      setIsLoading(false);
+      return;
+    }
+    
+    // Try to add the event (which now handles automatic rescheduling)
     const responseText = await addToCalendar(currentEvent);
 
     // Add bot response about this event being added
