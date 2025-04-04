@@ -31,7 +31,7 @@ export interface TaskNotification {
 export interface NotificationPreferences {
   notificationsEnabled: boolean;
   reminderOffsets: number[];
-  triggers: string[];
+  triggers: string[]; //possible values are: friend-requests, tasks
   hasBeenPrompted?: boolean; // Add this new property
 }
 

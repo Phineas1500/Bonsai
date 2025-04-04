@@ -1,9 +1,11 @@
 import { db } from 'firebaseConfig';
 import { doc, getDoc, setDoc, query, collection, where, getDocs, updateDoc, deleteDoc, arrayUnion, arrayRemove } from 'firebase/firestore';
-import { updateProfile } from 'firebase/auth';
+import { updateProfile} from 'firebase/auth';
+import { UserInfo } from '../../contexts/UserContext';
 import { auth } from 'firebaseConfig';
 import { deleteChat } from '@components/utils/chatManagement';
 import { sendPushNotification } from './notificationAPI';
+import { NotificationPreferences } from '@/app/contexts/NotificationContext';
 
 export const createUserDocument = async (email: string, username: string, signinType: string) => {
   const docRef = doc(db, 'users', email.toLowerCase());
@@ -236,13 +238,28 @@ export const sendFriendRequest = async (toUserEmail: string) => {
       incomingFriendRequests: arrayUnion(fromUserEmail)
     });
 
-    // Send incoming friend request notification to recipient's device
-    sendPushNotification({
-      email: sanitizedToEmail,
-      title: 'New Friend Request',
-      body: `${fromUserData} has sent you a friend request.`,
-      data: {}
-    });
+    //make sure that the friend you are sending to has notifications enabled and wants
+    //to be notified of friend requests
+    const toUser = await getUserByEmail(sanitizedToEmail);
+    if (!toUser) {
+      return { success: false, error: "Can't find user info for other user" };
+    }
+    const toUserInfo = toUser.data() as UserInfo;
+    const notifPrefs = toUserInfo.notificationPreferences as NotificationPreferences;
+    if (!notifPrefs) {
+      return { success: false, error: "Sending user doesn't have notification preferences" };
+    }
+    if (notifPrefs.notificationsEnabled) {
+      if (notifPrefs.triggers.includes("friend-request")) {
+        // Send incoming friend request notification to recipient's device
+        sendPushNotification({
+          email: sanitizedToEmail,
+          title: 'New Friend Request',
+          body: `${fromUserData} has sent you a friend request.`,
+          data: {}
+        });
+      }
+    }
 
     return { success: true, error: "" };
   } catch (error: any) {
