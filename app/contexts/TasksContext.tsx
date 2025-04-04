@@ -235,7 +235,7 @@ export function TasksProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  // Add a new task/event to Google Calendar
+  // ADD TASK FUNCTION
   const addTask = async (task: TaskItemData): Promise<boolean> => {
     if (!userInfo?.calendarAuth?.access_token) {
       setError("Google Calendar not connected");
@@ -278,7 +278,6 @@ export function TasksProvider({ children }: { children: ReactNode }) {
       }
       // Handle task creation through Google Tasks API
       else {
-        // First, get the default task list
         const listsResponse = await axios.get(
           "https://tasks.googleapis.com/tasks/v1/users/@me/lists",
           {
@@ -294,9 +293,9 @@ export function TasksProvider({ children }: { children: ReactNode }) {
 
         const defaultTaskList = listsResponse.data.items[0].id;
 
-        // Format due date for Google Tasks (ending with 'Z' for UTC)
+        // Format due date for tasks, NEED TO ENSURE DATE ISNT OFFSET
         const dueDate = new Date(task.endTime);
-        const dueDateString = dueDate.toISOString().split('T')[0] + 'T00:00:00Z';
+        const dueDateString = `${dueDate.getFullYear()}-${String(dueDate.getMonth() + 1).padStart(2, '0')}-${String(dueDate.getDate()).padStart(2, '0')}T00:00:00Z`;
 
         const taskData = {
           title: task.title,
@@ -319,11 +318,8 @@ export function TasksProvider({ children }: { children: ReactNode }) {
         task.id = response.data.id;
       }
 
-      // Add to local state
-      setTasks(prevTasks => {
-        const newTasks = [...prevTasks, task].sort((a, b) => b.priority - a.priority);
-        return newTasks;
-      });
+      // add task to state
+      setTasks(prevTasks => [...prevTasks, task]);
 
       return true;
     } catch (error: any) {
@@ -335,7 +331,7 @@ export function TasksProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  // Update an existing task/event
+  // UPDATE TASK FUNCTION
   const updateTask = async (task: TaskItemData): Promise<boolean> => {
     if (!userInfo?.calendarAuth?.access_token) {
       setError("Google Calendar not connected");
@@ -391,9 +387,9 @@ export function TasksProvider({ children }: { children: ReactNode }) {
 
         const defaultTaskList = listsResponse.data.items[0].id;
 
-        // Format due date for Google Tasks (ending with 'Z' for UTC)
+        // format due date for tasks
         const dueDate = new Date(task.endTime);
-        const dueDateString = dueDate.toISOString().split('T')[0] + 'T00:00:00Z';
+        const dueDateString = `${dueDate.getFullYear()}-${String(dueDate.getMonth() + 1).padStart(2, '0')}-${String(dueDate.getDate()).padStart(2, '0')}T00:00:00Z`;
 
         const taskData = {
           title: task.title,
@@ -413,13 +409,8 @@ export function TasksProvider({ children }: { children: ReactNode }) {
         );
       }
 
-      // Update in local state
-      setTasks(prevTasks => {
-        const updatedTasks = prevTasks.map(t =>
-          t.id === task.id ? task : t
-        ).sort((a, b) => b.priority - a.priority);
-        return updatedTasks;
-      });
+      // set tasks state with updated task
+      setTasks(prevTasks => prevTasks.map(t => t.id === task.id ? task : t));
 
       return true;
     } catch (error: any) {
@@ -431,7 +422,7 @@ export function TasksProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  // Delete a task/event
+  // DELETE TASK FUNCTION
   const deleteTask = async (taskId: string): Promise<boolean> => {
     if (!userInfo?.calendarAuth?.access_token) {
       setError("Google Calendar not connected");
@@ -449,7 +440,6 @@ export function TasksProvider({ children }: { children: ReactNode }) {
         throw new Error("Task not found");
       }
 
-      // Delete from appropriate Google API
       if (!taskToDelete.isTask) {
         // Delete event from Google Calendar
         await axios.delete(
@@ -488,7 +478,7 @@ export function TasksProvider({ children }: { children: ReactNode }) {
         );
       }
 
-      // Remove from local state
+      // remove tasks from state
       setTasks(prevTasks => prevTasks.filter(t => t.id !== taskId));
 
       return true;
@@ -501,6 +491,7 @@ export function TasksProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  // REFRESH TASKS FUNCTION
   const refreshTasks = async () => {
     if (userInfo) {
       setIsLoading(true);
@@ -512,8 +503,8 @@ export function TasksProvider({ children }: { children: ReactNode }) {
         // Get Google Tasks
         const tasks = await fetchGoogleTasks(userInfo);
 
-        // Combine and sort by priority
-        const combinedItems = [...events, ...tasks].sort((a, b) => b.priority - a.priority);
+        // Combine without sorting (UI will handle sorting)
+        const combinedItems = [...events, ...tasks];
 
         setTasks(combinedItems);
       } catch (error: any) {
