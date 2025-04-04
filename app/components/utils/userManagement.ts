@@ -3,6 +3,7 @@ import { doc, getDoc, setDoc, query, collection, where, getDocs, updateDoc, dele
 import { updateProfile } from 'firebase/auth';
 import { auth } from 'firebaseConfig';
 import { deleteChat } from '@components/utils/chatManagement';
+import { sendPushNotification } from './notificationAPI';
 
 export const createUserDocument = async (email: string, username: string, signinType: string) => {
   const docRef = doc(db, 'users', email.toLowerCase());
@@ -233,6 +234,14 @@ export const sendFriendRequest = async (toUserEmail: string) => {
     // Add to recipient's incoming requests
     await updateDoc(doc(db, "users", sanitizedToEmail), {
       incomingFriendRequests: arrayUnion(fromUserEmail)
+    });
+
+    // Send incoming friend request notification to recipient's device
+    sendPushNotification({
+      email: sanitizedToEmail,
+      title: 'New Friend Request',
+      body: `${fromUserData} has sent you a friend request.`,
+      data: {}
     });
 
     return { success: true, error: "" };
