@@ -1,7 +1,7 @@
 import { View, Text, Image, TouchableOpacity, Alert, ActivityIndicator } from "react-native";
 import GradientText from "@components/GradientText";
 import { auth } from "@/firebaseConfig";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import {
   getUserByEmail,
   getUserByUsername,
@@ -234,6 +234,15 @@ export default function Profile() {
     }
   };
 
+  //simple way to get unique and deterministic default profile image for users
+  const avatarUri = useMemo(() => {
+    if (!userInfo?.username) {
+      return Image.resolveAssetSource(require('@assets/images/bonsai-logo.png')).uri;
+    }
+    const seed = encodeURIComponent(userInfo.username);
+    return `https://api.dicebear.com/9.x/fun-emoji/png?seed=${seed}`;
+  }, [userInfo?.username]);
+
   return (
     <View className="flex-1 bg-stone-950">
       {loading ? (
@@ -248,7 +257,7 @@ export default function Profile() {
             {/* Profile Picture */}
             <View className="items-center">
               <Image
-                source={require('@assets/images/bonsai-logo.png')}
+                source={{ uri: avatarUri }}
                 className="w-32 h-32 rounded-3xl border-4 border-stone-950 bg-gray-800"
                 resizeMode="contain"
               />
