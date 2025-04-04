@@ -7,7 +7,7 @@ import { Platform, TaskCanceller } from "react-native";
 import { db } from 'firebaseConfig';
 import { addDoc, collection, deleteDoc, doc, getDoc, getDocs, QuerySnapshot, setDoc, updateDoc } from "firebase/firestore";
 import { useTasks } from "./TasksContext";
-import { cancelLocalNotification, scheduleLocalNotification } from "../components/utils/notificationAPI";
+import { cancelLocalNotification, scheduleLocalNotification, getPriorityOffsets } from "../components/utils/notificationAPI";
 import { NotificationPayload } from "../components/utils/notificationAPI";
 import { getUserByEmail } from "../components/utils/userManagement";
 
@@ -31,8 +31,9 @@ export interface TaskNotification {
 export interface NotificationPreferences {
   notificationsEnabled: boolean;
   reminderOffsets: number[];
+  priorityNotificationsEnabled: boolean; // New toggle for priority-based notifications
   triggers: string[]; //possible values are: friend-requests, tasks
-  hasBeenPrompted?: boolean; // Add this new property
+  hasBeenPrompted?: boolean;
 }
 
 const NotificationContext = createContext<NotificationContextType | undefined>(undefined);
@@ -53,8 +54,9 @@ export function NotificationProvider({ children }: { children: React.ReactNode})
     const DEFAULT_NOTIFICATION_PREFERENCES: NotificationPreferences = {
       notificationsEnabled: false,
       reminderOffsets: [0],
+      priorityNotificationsEnabled: false, // Default to disabled
       triggers: ["tasks"],
-      hasBeenPrompted: false // Initialize as false
+      hasBeenPrompted: false
     }
 
     // do stuff on load
@@ -121,18 +123,15 @@ export function NotificationProvider({ children }: { children: React.ReactNode})
 
         const userInfoSnap: UserInfo = userDoc.data() as UserInfo;
         const preferences = userInfoSnap.notificationPreferences;
+        console.log("user preferences: ", preferences);
         if (preferences) {
-          //update local user info context 
+          //update local user info context using the entire preferences object
           updateUserInfo({
-            notificationPreferences: {
-              notificationsEnabled: preferences.notificationsEnabled,
-              reminderOffsets: preferences.reminderOffsets,
-              triggers: preferences.triggers,
-              hasBeenPrompted: preferences.hasBeenPrompted
-            }
+            notificationPreferences: preferences
           })
         } else {
           //if user doesn't have prefernces, create default ones 
+          console.log("User doesn't have notification preferences, creating default ones");
           updateNotificationPreferences(DEFAULT_NOTIFICATION_PREFERENCES, userInfo.email);
         }
 
@@ -184,7 +183,7 @@ export function NotificationProvider({ children }: { children: React.ReactNode})
       // If user hasn't logged in yet then don't do anything
       if (!userInfo?.email) return;
 
-      // Remove all current scheduled tasks for the user
+      // Remove all current scheduled notifications for the user
       await removeScheduledNotifications(userInfo.email);
 
       // Use provided preferences or fall back to context state
@@ -206,17 +205,36 @@ export function NotificationProvider({ children }: { children: React.ReactNode})
         return;
       }
 
-      //for each task, add a notification for that task
+      // For each task, add notifications based on user's preferences
       const threads = tasks.map(async (taskItemData) => {
+        // Create base notification payload
         const notifPayload: NotificationPayload = {
           email: userInfo.email,
           title: taskItemData.title,
           body: taskItemData.description,
           data: taskItemData,
-          triggerTime: taskItemData.startTime //google calendar uses ISO compatible strings
+          triggerTime: taskItemData.startTime, //google calendar uses ISO compatible strings
+          priority: taskItemData.priority // Add priority to the payload
         }
-        return addNotificationForTask(notifPayload, taskItemData.id);
+        
+        // Schedule notifications based on user preferences
+        const scheduleThreads = [];
+        
+        // Schedule frequency-based notifications (existing functionality)
+        if (notificationPreferences.reminderOffsets && notificationPreferences.reminderOffsets.length > 0) {
+          scheduleThreads.push(addNotificationForTask(notifPayload, taskItemData.id, notificationPreferences.reminderOffsets));
+        }
+        
+        // Schedule priority-based notifications if enabled
+        if (notificationPreferences.priorityNotificationsEnabled) {
+          const priorityOffsets = getPriorityOffsets(taskItemData.priority);
+          scheduleThreads.push(addNotificationForTask(notifPayload, taskItemData.id, priorityOffsets, true));
+        }
+        
+        // Wait for all notification scheduling to complete
+        return Promise.all(scheduleThreads);
       });
+      
       await Promise.all(threads);
     }
 
@@ -230,23 +248,19 @@ export function NotificationProvider({ children }: { children: React.ReactNode})
      * @param taskId the taskId given by google calendar to uniquely identify the task
      * @returns 
      */
-    const addNotificationForTask = async (notification: NotificationPayload, taskId: string) => {
-    
+    const addNotificationForTask = async (
+      notification: NotificationPayload, 
+      taskId: string, 
+      offsets: number[],
+      isPriorityBased: boolean = false
+    ) => {
       try {
         if (!notification.triggerTime) {
           console.error("Task notification must have trigger time");
           return;
         }
 
-        const notificationPreferences = userInfo?.notificationPreferences;
-        if (!notificationPreferences) {
-          console.log("Notification preferences not initialized. Can't add notifications");
-          return;
-        }
-
-        //for each task to notify about, might have to create multiple notifications
-        //at different offset times i.e 5 minutes before, 10 minutes before ... 
-        const offsets = notificationPreferences.reminderOffsets;
+        // For each offset, schedule a notification
         const threads = offsets.map(async (minuteOffset) => {
           if (!notification.triggerTime) return;
           const originalTime = new Date(notification.triggerTime);
@@ -259,12 +273,13 @@ export function NotificationProvider({ children }: { children: React.ReactNode})
             title: notification.title,
             body: notification.body, 
             data: notification.data,
-            triggerTime: newTime.toISOString()
+            triggerTime: newTime.toISOString(),
+            priority: isPriorityBased ? notification.priority : undefined // Only include priority for priority-based notifications
           }
+          
           //each notification for a task will have a unique notification id and same task id
           const notificationID = await scheduleLocalNotification(newNotif);
           if (!notificationID) {
-            // console.error("Error scheduling notification");
             console.log("NOT THROWING ERROR");
             return;
           }
@@ -283,12 +298,12 @@ export function NotificationProvider({ children }: { children: React.ReactNode})
           });
           return;
         });
+        
         await Promise.all(threads);
         
       } catch (error: any) {
         console.error("Problem adding notification for user", error);
       }
-
     }
 
     const removeScheduledNotifications = async (email: string) => {

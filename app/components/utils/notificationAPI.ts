@@ -9,6 +9,28 @@ export interface NotificationPayload {
     body: string,
     data: Record<string, any>
     triggerTime?: string //ISO string
+    priority?: number; // Add priority to notification payload
+};
+
+// Define priority offset mapping (in minutes)
+export const PRIORITY_NOTIFICATION_OFFSETS = {
+    LOW: [60], // 1 hour before for low priority (1-4)
+    MEDIUM: [240, 30], // 4 hours and 30 minutes before for medium priority (5-7)
+    HIGH: [1440, 240, 15], // 1 day, 4 hours, and 15 minutes before for high priority (8-10)
+};
+
+// Helper to get priority offsets based on priority score
+export const getPriorityOffsets = (priority: number): number[] => {
+    if (priority >= 8) return PRIORITY_NOTIFICATION_OFFSETS.HIGH;
+    if (priority >= 5) return PRIORITY_NOTIFICATION_OFFSETS.MEDIUM;
+    return PRIORITY_NOTIFICATION_OFFSETS.LOW;
+};
+
+// Helper to get priority label for notification
+export const getPriorityLabel = (priority: number): string => {
+    if (priority >= 8) return "High Priority";
+    if (priority >= 5) return "Medium Priority";
+    return "Low Priority";
 };
 
 export const scheduleLocalNotification = async (notification: NotificationPayload) => {
@@ -26,12 +48,27 @@ export const scheduleLocalNotification = async (notification: NotificationPayloa
         return;
     }
     
+    // Prepare notification content with priority label if available
+    const notificationContent: Notifications.NotificationContentInput = {
+        title: notification.title,
+        body: notification.body,
+        data: notification.data || {}
+    };
+    
+    // Add priority label to notification if priority is provided
+    if (notification.priority !== undefined) {
+        const priorityLabel = getPriorityLabel(notification.priority);
+        notificationContent.title = `${priorityLabel}: ${notification.title}`;
+        
+        // Add priority to data for the app to use if needed
+        notificationContent.data = {
+            ...notificationContent.data,
+            priority: notification.priority
+        };
+    }
+    
     const notificationID = await Notifications.scheduleNotificationAsync({
-        content: {
-            title: notification.title,
-            body: notification.body,
-            data: notification.data || {}
-        },
+        content: notificationContent,
         trigger: {
             type: Notifications.SchedulableTriggerInputTypes.DATE,
             date: triggerDate

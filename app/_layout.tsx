@@ -1,5 +1,6 @@
 import React, { useEffect } from 'react';
 import { Stack, usePathname } from 'expo-router';
+import { configureReanimatedLogger, ReanimatedLogLevel } from 'react-native-reanimated';
 
 import { UserProvider } from './contexts/UserContext';
 import { TasksProvider } from './contexts/TasksContext';
@@ -8,6 +9,12 @@ import * as Notifications from "expo-notifications";
 import { NotificationProvider, useNotification } from './contexts/NotificationContext';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { useUser } from './contexts/UserContext';
+
+// Configure Reanimated logger - disable strict mode
+configureReanimatedLogger({
+  level: ReanimatedLogLevel.warn,
+  strict: false, // This will disable the strict mode warnings
+});
 
 // Create a wrapper component to use hooks
 function AppContent() {

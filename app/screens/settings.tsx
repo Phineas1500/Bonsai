@@ -238,7 +238,32 @@ export default function Settings() {
                         </View>
                         ))}
                     </View>
-
+                    {/* Priority-based notifications */}
+                    <View className="border-b mb-4 border-gray-800">
+                        <Text className="text-white font-bold text-sm mb-1">Priority-based notifications</Text>
+                        <View className="flex-row items-center justify-between py-2">
+                            <View>
+                                <Text className="text-white font-thin">Enable priority-based notifications</Text>
+                                <Text className="text-gray-400 text-xs">
+                                    This will schedule notifications based on event priority:
+                                </Text>
+                                <Text className="text-gray-400 text-xs">Low priority: 1 hour before</Text>
+                                <Text className="text-gray-400 text-xs">Medium priority: 4 hours and 30 minutes before</Text>
+                                <Text className="text-gray-400 text-xs">High priority: 1 day, 4 hours, and 15 minutes before</Text>
+                            </View>
+                            <Switch
+                                value={notificationPreferences.priorityNotificationsEnabled}
+                                onValueChange={() => {
+                                    if (!userInfo?.email) return;
+                                    updateNotificationPreferences({ 
+                                        priorityNotificationsEnabled: !notificationPreferences.priorityNotificationsEnabled 
+                                    }, userInfo.email);
+                                }}
+                                trackColor={{ false: "#ccc", true: "#81b0ff" }}
+                                thumbColor={notificationPreferences.priorityNotificationsEnabled ? "#007aff" : "#f4f3f4"}
+                            />
+                        </View>
+                    </View>
                 </View>
 
                 <ChangeUsernameModal

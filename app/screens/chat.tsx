@@ -83,15 +83,15 @@ export default function Chat() {
     } else {
       //if the user has a chat, then load messages from it
       const chatId = userChats[0].id;
-      console.log("All chats for user:", userChats);
-      console.log("Chat ID:", chatId);
+      //console.log("All chats for user:", userChats);
+      //console.log("Chat ID:", chatId);
       if (!chatId) {
         console.error("ChatId is null");
         return;
       }
       setChatId(userChats[0].id); //for now, assume only one chat
       const messages = await getMessages(chatId);
-      console.log("messages: ", messages);
+      //console.log("messages: ", messages);
       setMessages(messages);
     }
   }

@@ -29,15 +29,18 @@ export const createUserDocument = async (email: string, username: string, signin
 };
 
 export const getUserByEmail = async (email: string) => {
-  const userDoc = await getDoc(doc(db, 'users', email.toLowerCase()));
+  const userDocRef = doc(db, 'users', email.toLowerCase());
+  const userDocSnap = await getDoc(userDocRef);
 
-  if (!userDoc.exists()) {
+  if (!userDocSnap.exists()) {
     return null;
   }
 
+  // Return direct data instead of a function
+  const userData = userDocSnap.data();
   return {
-    id: userDoc.data().email,
-    data: () => userDoc.data()
+    id: email.toLowerCase(),
+    data: () => userData // Still keeps the same interface but with fresh data
   };
 };
 
