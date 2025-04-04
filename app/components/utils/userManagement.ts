@@ -254,7 +254,7 @@ export const sendFriendRequest = async (toUserEmail: string) => {
       return { success: true, error: "" };
     }
     if (notifPrefs.notificationsEnabled) {
-      if (notifPrefs.triggers.includes("friend-request")) {
+      if (notifPrefs.triggers.includes("friend-requests")) {
         // Send incoming friend request notification to recipient's device
         sendPushNotification({
           email: sanitizedToEmail,

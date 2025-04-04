@@ -1,10 +1,21 @@
+import * as Notifications from "expo-notifications";
+
+//this is necessary to show notifications
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldShowAlert: true,
+    shouldPlaySound: true,
+    shouldSetBadge: true,
+  }),
+});
+
 import React, { useEffect } from 'react';
 import { Stack, usePathname } from 'expo-router';
 import { View } from 'react-native';
 import { UserProvider } from './contexts/UserContext';
 import { TasksProvider } from './contexts/TasksContext';
 import Navbar from './components/Navbar';
-import * as Notifications from "expo-notifications";
+
 import { NotificationProvider, useNotification } from './contexts/NotificationContext';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { useUser } from './contexts/UserContext';
