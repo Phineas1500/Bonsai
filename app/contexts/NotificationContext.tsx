@@ -18,6 +18,7 @@ interface NotificationContextType {
     error: Error | null;
     updateNotificationPreferences: (newPrefs: Partial<NotificationPreferences>, userEmail: string) => Promise<void>;
     notificationPreferences: NotificationPreferences;
+    requestInitialNotificationPermissions: () => Promise<void>;
 }
 
 export interface TaskNotification {
@@ -28,9 +29,10 @@ export interface TaskNotification {
 
 //have to make sure to keep this synced with the shape of user info
 export interface NotificationPreferences {
-  notificationsEnabled : boolean;
-  reminderOffsets : number[];
-  triggers : string [];
+  notificationsEnabled: boolean;
+  reminderOffsets: number[];
+  triggers: string[];
+  hasBeenPrompted?: boolean; // Add this new property
 }
 
 const NotificationContext = createContext<NotificationContextType | undefined>(undefined);
@@ -51,7 +53,8 @@ export function NotificationProvider({ children }: { children: React.ReactNode})
     const DEFAULT_NOTIFICATION_PREFERENCES: NotificationPreferences = {
       notificationsEnabled: false,
       reminderOffsets: [0],
-      triggers: ["tasks"]
+      triggers: ["tasks"],
+      hasBeenPrompted: false // Initialize as false
     }
 
     // do stuff on load
@@ -124,7 +127,8 @@ export function NotificationProvider({ children }: { children: React.ReactNode})
             notificationPreferences: {
               notificationsEnabled: preferences.notificationsEnabled,
               reminderOffsets: preferences.reminderOffsets,
-              triggers: preferences.triggers
+              triggers: preferences.triggers,
+              hasBeenPrompted: preferences.hasBeenPrompted
             }
           })
         } else {
@@ -260,7 +264,8 @@ export function NotificationProvider({ children }: { children: React.ReactNode})
           //each notification for a task will have a unique notification id and same task id
           const notificationID = await scheduleLocalNotification(newNotif);
           if (!notificationID) {
-            console.error("Error scheduling notification");
+            // console.error("Error scheduling notification");
+            console.log("NOT THROWING ERROR");
             return;
           }
 
@@ -414,6 +419,61 @@ export function NotificationProvider({ children }: { children: React.ReactNode})
       }
     }
 
+    const requestInitialNotificationPermissions = async () => {
+      // Skip if user already has notification preferences set (they've already been asked)
+      if (userInfo?.notificationPreferences?.hasBeenPrompted) {
+        return;
+      }
+      
+      try {
+        // Check if permissions are already granted
+        const { status: existingStatus } = await Notifications.getPermissionsAsync();
+        
+        // If permissions are already determined, update the preferences accordingly
+        if (existingStatus !== 'undetermined') {
+          const isEnabled = existingStatus === 'granted';
+          
+          if (userInfo?.email) {
+            // Set notification preferences based on permission status
+            updateNotificationPreferences({
+              notificationsEnabled: isEnabled,
+              hasBeenPrompted: true // Mark that user has been prompted
+            }, userInfo.email);
+          }
+          return;
+        }
+        
+        // Request permission
+        const { status } = await Notifications.requestPermissionsAsync();
+        const isEnabled = status === 'granted';
+        
+        // If permission granted, set up push token
+        if (isEnabled && userInfo?.email) {
+          const projectId = Constants?.expoConfig?.extra?.eas?.projectId ?? 
+                            Constants?.easConfig?.projectId;
+                            
+          if (projectId) {
+            const pushTokenString = (await Notifications.getExpoPushTokenAsync({
+              projectId,
+            })).data;
+            
+            await storePushNotificationToken(pushTokenString, userInfo.email);
+            setExpoPushToken(pushTokenString);
+          }
+        }
+        
+        // Update user preferences based on response
+        if (userInfo?.email) {
+          updateNotificationPreferences({
+            notificationsEnabled: isEnabled,
+            hasBeenPrompted: true
+          }, userInfo.email);
+        }
+      } catch (error) {
+        console.error("Error requesting initial notification permissions:", error);
+      }
+    };
+
     return (
         <NotificationContext.Provider 
         value={{
@@ -423,6 +483,7 @@ export function NotificationProvider({ children }: { children: React.ReactNode})
           error, 
           updateNotificationPreferences,
           notificationPreferences: userInfo?.notificationPreferences ?? DEFAULT_NOTIFICATION_PREFERENCES,
+          requestInitialNotificationPermissions,
         }}>
             {children}
         </NotificationContext.Provider>

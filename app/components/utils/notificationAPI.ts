@@ -17,20 +17,28 @@ export const scheduleLocalNotification = async (notification: NotificationPayloa
         return;
     }
     
+    const triggerDate = new Date(notification.triggerTime);
+    const now = new Date();
+    
+    // Skip notifications in the past
+    if (triggerDate <= now) {
+        console.log(`Skipping notification for "${notification.title}" as the time (${triggerDate.toLocaleTimeString()}) has already passed`);
+        return;
+    }
+    
     const notificationID = await Notifications.scheduleNotificationAsync({
         content: {
             title: notification.title,
             body: notification.body,
+            data: notification.data || {}
         },
         trigger: {
             type: Notifications.SchedulableTriggerInputTypes.DATE,
-            date: new Date(notification.triggerTime) //date object from ISO string
+            date: triggerDate
         },
     });
 
-    const dateObj = new Date(notification.triggerTime);
-
-    console.log("scheduled notification for ", dateObj.toLocaleTimeString(), "with id: ", notificationID);
+    console.log("scheduled notification for ", triggerDate.toLocaleTimeString(), "with id: ", notificationID);
     
     return notificationID;
 }
