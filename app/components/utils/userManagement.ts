@@ -247,7 +247,8 @@ export const sendFriendRequest = async (toUserEmail: string) => {
     const toUserInfo = toUser.data() as UserInfo;
     const notifPrefs = toUserInfo.notificationPreferences as NotificationPreferences;
     if (!notifPrefs) {
-      return { success: false, error: "Sending user doesn't have notification preferences" };
+      console.log("Sending user doesn't have notification preferences");
+      return { success: true, error: "" };
     }
     if (notifPrefs.notificationsEnabled) {
       if (notifPrefs.triggers.includes("friend-request")) {
