@@ -143,7 +143,7 @@ export function NotificationProvider({ children }: { children: React.ReactNode})
      * @param newPreferences 
      * @param email 
      */
-    const updateNotificationPreferences = async (newPreferences : Partial<NotificationPreferences>, email: string) => {
+    const updateNotificationPreferences = async (newPreferences: Partial<NotificationPreferences>, email: string) => {
       try {
         const currentPrefs = userInfo?.notificationPreferences ?? DEFAULT_NOTIFICATION_PREFERENCES;
 
@@ -152,19 +152,19 @@ export function NotificationProvider({ children }: { children: React.ReactNode})
           ...newPreferences
         }
 
-        //update the local user info context
+        // Update the database first
+        const docRef = doc(db, "users", email);
+        await updateDoc(docRef, {
+          notificationPreferences: mergedPrefs
+        });
+
+        // Update the local user info context
         updateUserInfo({
           notificationPreferences: mergedPrefs
-        })
-
-        //update the database
-        const docRef = doc(db, "users", email);
-            await updateDoc(docRef, {
-              notificationPreferences: mergedPrefs
-             });
+        });
       
-        //refresh scheduled notifications because logic for scheduling might have changed
-        await updateTaskNotifications();
+        // Pass the new merged preferences directly to avoid stale state
+        await updateTaskNotifications(mergedPrefs);
 
       } catch (error: any) {
         console.error("Error updating notification preferences", error);
@@ -176,20 +176,21 @@ export function NotificationProvider({ children }: { children: React.ReactNode})
      * 
      * @returns 
      */
-    const updateTaskNotifications = async () => {
-      //if user hasn't logged in yet then don't do anything
+    const updateTaskNotifications = async (providedPrefs?: NotificationPreferences) => {
+      // If user hasn't logged in yet then don't do anything
       if (!userInfo?.email) return;
 
-
-      //remove all current scheduled tasks for the user
+      // Remove all current scheduled tasks for the user
       await removeScheduledNotifications(userInfo.email);
 
-      //if the user has notifications disabled then don't notify of anything
-      const notificationPreferences = userInfo.notificationPreferences;
+      // Use provided preferences or fall back to context state
+      const notificationPreferences = providedPrefs || userInfo?.notificationPreferences;
+      
       if (!notificationPreferences) {
         console.log("user doesn't have any notification preferences")
         return;
       }
+      
       if (!notificationPreferences.notificationsEnabled) {
         console.log("User has notifications disabled");
         return;

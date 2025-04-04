@@ -166,6 +166,7 @@ export default function Tasks() {
           onSave={handleSaveTask}
           task={editingTask}
           isGoogleCalendarLinked={isCalendarLinked}
+          onSuccess={refreshTasks} // Add this prop to refresh after save
         />
       </View>
     </GestureHandlerRootView>

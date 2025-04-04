@@ -3,7 +3,6 @@ import {
   Modal,
   View,
   Text,
-  TextInput,
   TouchableOpacity,
   ScrollView,
   Platform,
@@ -11,11 +10,13 @@ import {
   ActivityIndicator,
   TouchableWithoutFeedback,
 } from 'react-native';
+import TextInput from './TextInput';
 import { TaskItemData } from '@contexts/TasksContext';
+
 import { BlurView } from 'expo-blur';
 import { Feather, MaterialIcons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
-import { format, setHours, setMinutes, setSeconds } from 'date-fns';
+import { format } from 'date-fns';
 
 interface TaskModalProps {
   visible: boolean;
@@ -23,16 +24,17 @@ interface TaskModalProps {
   onSave: (task: TaskItemData) => Promise<boolean>;
   task?: TaskItemData;  // If provided, we're editing an existing task
   isGoogleCalendarLinked: boolean;
+  onSuccess?: () => void; // New prop to handle post-save actions like refreshing
 }
 
-const TaskModal = ({ visible, onClose, onSave, task, isGoogleCalendarLinked }: TaskModalProps) => {
+const TaskModal = ({ visible, onClose, onSave, task, isGoogleCalendarLinked, onSuccess }: TaskModalProps) => {
   const [isLoading, setIsLoading] = useState(false);
   const [type, setType] = useState<'event' | 'task'>('event');
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [location, setLocation] = useState('');
   const [startDate, setStartDate] = useState(new Date());
-  const [endDate, setEndDate] = useState(new Date(new Date().getTime() + 60 * 60 * 1000)); // Default to 1 hour later
+  const [endDate, setEndDate] = useState(new Date(new Date().getTime() + 60 * 60 * 1000)); // default is 1 hour later
   const [priority, setPriority] = useState(5); // Default priority, will be calculated automatically
 
   const [showStartDate, setShowStartDate] = useState(false);
@@ -106,12 +108,22 @@ const TaskModal = ({ visible, onClose, onSave, task, isGoogleCalendarLinked }: T
       let endTimeValue: string;
 
       if (type === 'task') {
-        // For tasks:
-        // - Start time is the same day at 00:00
-        // - End time is the same day at 23:59
         const dueDateOnly = new Date(endDate);
-        const startOfDay = new Date(dueDateOnly.setHours(0, 0, 0, 0));
-        const endOfDay = new Date(dueDateOnly.setHours(23, 59, 59, 0));
+        
+        // need to create these so times start at 0 and end at 23:59:59
+        const startOfDay = new Date(
+          dueDateOnly.getFullYear(),
+          dueDateOnly.getMonth(),
+          dueDateOnly.getDate(), 
+          0, 0, 0, 0
+        );
+        
+        const endOfDay = new Date(
+          dueDateOnly.getFullYear(),
+          dueDateOnly.getMonth(),
+          dueDateOnly.getDate(),
+          23, 59, 59, 0
+        );
 
         startTimeValue = startOfDay.toISOString();
         endTimeValue = endOfDay.toISOString();
@@ -134,6 +146,10 @@ const TaskModal = ({ visible, onClose, onSave, task, isGoogleCalendarLinked }: T
 
       const success = await onSave(taskData);
       if (success) {
+        // Call onSuccess to refresh tasks after successful save
+        if (onSuccess) {
+          onSuccess();
+        }
         onClose();
       } else {
         Alert.alert('Error', 'Failed to save task');
@@ -154,9 +170,10 @@ const TaskModal = ({ visible, onClose, onSave, task, isGoogleCalendarLinked }: T
     setShowEndTime(false);
   };
 
+  // 
   const handleStartDateChange = (event: any, selectedDate?: Date) => {
     // Dismiss the picker in all cases
-    setShowStartDate(false);
+    // setShowStartDate(false);
 
     // If the selection was canceled or dismissed without a date
     if (event.type === 'dismissed' || !selectedDate) {
@@ -183,7 +200,7 @@ const TaskModal = ({ visible, onClose, onSave, task, isGoogleCalendarLinked }: T
 
   const handleStartTimeChange = (event: any, selectedDate?: Date) => {
     // Dismiss the picker in all cases
-    setShowStartTime(false);
+    // setShowStartTime(false);
 
     // If the selection was canceled or dismissed without a time
     if (event.type === 'dismissed' || !selectedDate) {
@@ -209,7 +226,7 @@ const TaskModal = ({ visible, onClose, onSave, task, isGoogleCalendarLinked }: T
 
   const handleEndDateChange = (event: any, selectedDate?: Date) => {
     // Dismiss the picker in all cases
-    setShowEndDate(false);
+    // setShowEndDate(false);
 
     // If the selection was canceled or dismissed without a date
     if (event.type === 'dismissed' || !selectedDate) {
@@ -236,7 +253,7 @@ const TaskModal = ({ visible, onClose, onSave, task, isGoogleCalendarLinked }: T
 
   const handleEndTimeChange = (event: any, selectedDate?: Date) => {
     // Dismiss the picker in all cases
-    setShowEndTime(false);
+    // setShowEndTime(false);
 
     // If the selection was canceled or dismissed without a time
     if (event.type === 'dismissed' || !selectedDate) {
@@ -267,26 +284,25 @@ const TaskModal = ({ visible, onClose, onSave, task, isGoogleCalendarLinked }: T
     if (Platform.OS === 'ios') {
       return (
         <Modal visible={true} transparent animationType="fade">
-          <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' }}>
-            <View style={{ backgroundColor: '#2d2d2d', borderTopLeftRadius: 10, borderTopRightRadius: 10, padding: 10 }}>
-              <View style={{ flexDirection: 'row', justifyContent: 'space-between', padding: 10 }}>
-                <TouchableOpacity onPress={() => onChange({ type: 'dismissed' }, undefined)}>
-                  <Text style={{ color: '#14b8a6', fontSize: 16 }}>Cancel</Text>
-                </TouchableOpacity>
-                <TouchableOpacity onPress={() => onChange({ type: 'set' }, value)}>
-                  <Text style={{ color: '#14b8a6', fontSize: 16 }}>Done</Text>
-                </TouchableOpacity>
+          <TouchableWithoutFeedback onPress={dismissPickers}>
+            <View className="flex-1 bg-black/50 justify-end">
+              <View className="bg-neutral-800 rounded-t-lg p-2.5">
+                <View className="flex-row justify-between p-2.5">
+                  <TouchableOpacity onPress={dismissPickers}>
+                    <Text className="text-teal-500 text-base">Done</Text>
+                  </TouchableOpacity>
+                </View>
+                <DateTimePicker
+                  value={value}
+                  mode={mode}
+                  display="spinner"
+                  onChange={(e, d) => d && onChange(e, d)}
+                  themeVariant="dark"
+                  style={{ backgroundColor: '#262626' }} // Using inline style as DateTimePicker doesn't support className
+                />
               </View>
-              <DateTimePicker
-                value={value}
-                mode={mode}
-                display="spinner"
-                onChange={(e, d) => d && onChange(e, d)}
-                themeVariant="dark"
-                style={{ backgroundColor: '#2d2d2d' }}
-              />
             </View>
-          </View>
+          </TouchableWithoutFeedback>
         </Modal>
       );
     }
@@ -307,13 +323,13 @@ const TaskModal = ({ visible, onClose, onSave, task, isGoogleCalendarLinked }: T
     <Modal visible={visible} transparent animationType="fade">
       <BlurView intensity={50} className="flex-1 justify-center items-center bg-black/60">
 
-        <View className="w-[90%] max-h-[85%] bg-[#1c1c1c] rounded-2xl overflow-hidden">
-          <View className="flex-row justify-between items-center bg-teal-700 p-4">
+        <View className="w-[90%] max-h-[85%] bg-stone-900 rounded-2xl overflow-hidden">
+          <View className="flex-row justify-between items-center bg-teal-700 py-2 px-4">
             <Text className="text-white text-lg font-bold">
               {task ? 'Edit' : 'Create'} {type === 'task' ? 'Task' : 'Event'}
             </Text>
             <TouchableOpacity onPress={onClose} className="p-1">
-              <Feather name="x" size={24} color="#fff" />
+              <Feather name="x" size={24} color="white" />
             </TouchableOpacity>
           </View>
 
@@ -321,31 +337,31 @@ const TaskModal = ({ visible, onClose, onSave, task, isGoogleCalendarLinked }: T
             {/* Type Selector */}
             <View className="mb-4">
               <Text className="text-white mb-2 text-base">Type</Text>
-              <View className="flex-row bg-[#2d2d2d] rounded-lg overflow-hidden">
+              <View className="flex-row bg-neutral-800 rounded-lg overflow-hidden">
                 <TouchableOpacity
-                  className={`flex-1 flex-row justify-center items-center p-3 ${type === 'event' ? 'bg-[#212121]' : ''}`}
+                  className={`flex-1 flex-row justify-center items-center p-3 ${type === 'event' ? 'bg-neutral-900' : ''}`}
                   onPress={() => !isEditing && setType('event')} // Only allow changing if not editing
                   disabled={isEditing}
                 >
                   <MaterialIcons
                     name="event"
                     size={24}
-                    color={type === 'event' ? '#14b8a6' : (isEditing ? '#555' : '#999')}
+                    color={type === 'event' ? '#0d9488' : (isEditing ? '#6b7280' : '#9ca3af')}
                   />
-                  <Text className={`ml-2 text-base ${type === 'event' ? 'text-teal-700 font-medium' : (isEditing ? 'text-gray-600' : 'text-gray-400')}`}>Event</Text>
+                  <Text className={`ml-2 text-base ${type === 'event' ? 'text-teal-600 font-medium' : (isEditing ? 'text-gray-500' : 'text-gray-400')}`}>Event</Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity
-                  className={`flex-1 flex-row justify-center items-center p-3 ${type === 'task' ? 'bg-[#212121]' : ''}`}
+                  className={`flex-1 flex-row justify-center items-center p-3 ${type === 'task' ? 'bg-neutral-900' : ''}`}
                   onPress={() => !isEditing && setType('task')} // Only allow changing if not editing
                   disabled={isEditing}
                 >
                   <MaterialIcons
                     name="check-circle-outline"
                     size={24}
-                    color={type === 'task' ? '#14b8a6' : (isEditing ? '#555' : '#999')}
+                    color={type === 'task' ? '#0d9488' : (isEditing ? '#6b7280' : '#9ca3af')}
                   />
-                  <Text className={`ml-2 text-base ${type === 'task' ? 'text-teal-700 font-medium' : (isEditing ? 'text-gray-600' : 'text-gray-400')}`}>Task</Text>
+                  <Text className={`ml-2 text-base ${type === 'task' ? 'text-teal-600 font-medium' : (isEditing ? 'text-gray-500' : 'text-gray-400')}`}>Task</Text>
                 </TouchableOpacity>
               </View>
               {isEditing && (
@@ -359,11 +375,10 @@ const TaskModal = ({ visible, onClose, onSave, task, isGoogleCalendarLinked }: T
             <View className="mb-4">
               <Text className="text-white mb-2 text-base">Title *</Text>
               <TextInput
-                className="bg-[#2d2d2d] p-3 rounded-lg text-white text-base"
                 value={title}
                 onChangeText={setTitle}
                 placeholder="Enter title"
-                placeholderTextColor="#999"
+                classStyle="bg-neutral-800 rounded-lg"
               />
             </View>
 
@@ -371,14 +386,10 @@ const TaskModal = ({ visible, onClose, onSave, task, isGoogleCalendarLinked }: T
             <View className="mb-4">
               <Text className="text-white mb-2 text-base">Description</Text>
               <TextInput
-                className="bg-[#2d2d2d] p-3 rounded-lg text-white text-base h-24"
                 value={description}
                 onChangeText={setDescription}
                 placeholder="Enter description"
-                placeholderTextColor="#999"
-                multiline
-                numberOfLines={4}
-                textAlignVertical="top"
+                classStyle="bg-neutral-800 rounded-lg h-24"
               />
             </View>
 
@@ -387,11 +398,10 @@ const TaskModal = ({ visible, onClose, onSave, task, isGoogleCalendarLinked }: T
               <View className="mb-4">
                 <Text className="text-white mb-2 text-base">Location</Text>
                 <TextInput
-                  className="bg-[#2d2d2d] p-3 rounded-lg text-white text-base"
                   value={location}
                   onChangeText={setLocation}
                   placeholder="Enter location"
-                  placeholderTextColor="#999"
+                  classStyle="bg-neutral-800 rounded-lg"
                 />
               </View>
             )}
@@ -405,13 +415,13 @@ const TaskModal = ({ visible, onClose, onSave, task, isGoogleCalendarLinked }: T
 
                 {/* Date Selector */}
                 <TouchableOpacity
-                  className="flex-row items-center bg-[#2d2d2d] p-3 rounded-lg mb-2"
+                  className="flex-row items-center bg-neutral-800 p-3 rounded-lg mb-2"
                   onPress={() => {
                     dismissPickers();
                     setShowStartDate(true);
                   }}
                 >
-                  <Feather name="calendar" size={20} color="#14b8a6" />
+                  <Feather name="calendar" size={20} color="#0d9488" />
                   <Text className="ml-2 text-white text-base">
                     {format(startDate, 'MMM d, yyyy')}
                   </Text>
@@ -419,13 +429,13 @@ const TaskModal = ({ visible, onClose, onSave, task, isGoogleCalendarLinked }: T
 
                 {/* Time Selector (for events) */}
                 <TouchableOpacity
-                  className="flex-row items-center bg-[#2d2d2d] p-3 rounded-lg mb-2"
+                  className="flex-row items-center bg-neutral-800 p-3 rounded-lg mb-2"
                   onPress={() => {
                     dismissPickers();
                     setShowStartTime(true);
                   }}
                 >
-                  <Feather name="clock" size={20} color="#14b8a6" />
+                  <Feather name="clock" size={20} color="#0d9488" />
                   <Text className="ml-2 text-white text-base">
                     {format(startDate, 'h:mm a')}
                   </Text>
@@ -441,13 +451,13 @@ const TaskModal = ({ visible, onClose, onSave, task, isGoogleCalendarLinked }: T
 
               {/* Date Selector */}
               <TouchableOpacity
-                className="flex-row items-center bg-[#2d2d2d] p-3 rounded-lg mb-2"
+                className="flex-row items-center bg-neutral-800 p-3 rounded-lg mb-2"
                 onPress={() => {
                   dismissPickers();
                   setShowEndDate(true);
                 }}
               >
-                <Feather name="calendar" size={20} color="#14b8a6" />
+                <Feather name="calendar" size={20} color="#0d9488" />
                 <Text className="ml-2 text-white text-base">
                   {format(endDate, 'MMM d, yyyy')}
                 </Text>
@@ -456,13 +466,13 @@ const TaskModal = ({ visible, onClose, onSave, task, isGoogleCalendarLinked }: T
               {/* Time Selector (for events only) */}
               {type === 'event' && (
                 <TouchableOpacity
-                  className="flex-row items-center bg-[#2d2d2d] p-3 rounded-lg mb-2"
+                  className="flex-row items-center bg-neutral-800 p-3 rounded-lg mb-2"
                   onPress={() => {
                     dismissPickers();
                     setShowEndTime(true);
                   }}
                 >
-                  <Feather name="clock" size={20} color="#14b8a6" />
+                  <Feather name="clock" size={20} color="#0d9488" />
                   <Text className="ml-2 text-white text-base">
                     {format(endDate, 'h:mm a')}
                   </Text>
@@ -477,10 +487,10 @@ const TaskModal = ({ visible, onClose, onSave, task, isGoogleCalendarLinked }: T
               disabled={isLoading}
             >
               {isLoading ? (
-                <ActivityIndicator color="#fff" />
+                <ActivityIndicator color="white" />
               ) : (
                 <>
-                  <Feather name="check" size={20} color="#fff" />
+                  <Feather name="check" size={20} color="white" />
                   <Text className="ml-2 text-white font-bold text-base">
                     {task ? 'Update' : 'Create'}
                   </Text>

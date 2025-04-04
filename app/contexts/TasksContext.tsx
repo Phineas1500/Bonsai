@@ -294,9 +294,11 @@ export function TasksProvider({ children }: { children: ReactNode }) {
 
         const defaultTaskList = listsResponse.data.items[0].id;
 
-        // Format due date for Google Tasks (ending with 'Z' for UTC)
+        // Format due date for Google Tasks
+        // Fix: Parse the date directly from the ISO string to preserve proper date
         const dueDate = new Date(task.endTime);
-        const dueDateString = dueDate.toISOString().split('T')[0] + 'T00:00:00Z';
+        // Create a proper ISO date string for the due date without time component
+        const dueDateString = `${dueDate.getFullYear()}-${String(dueDate.getMonth() + 1).padStart(2, '0')}-${String(dueDate.getDate()).padStart(2, '0')}T00:00:00Z`;
 
         const taskData = {
           title: task.title,
@@ -391,9 +393,9 @@ export function TasksProvider({ children }: { children: ReactNode }) {
 
         const defaultTaskList = listsResponse.data.items[0].id;
 
-        // Format due date for Google Tasks (ending with 'Z' for UTC)
+        // Format due date for Google Tasks
         const dueDate = new Date(task.endTime);
-        const dueDateString = dueDate.toISOString().split('T')[0] + 'T00:00:00Z';
+        const dueDateString = `${dueDate.getFullYear()}-${String(dueDate.getMonth() + 1).padStart(2, '0')}-${String(dueDate.getDate()).padStart(2, '0')}T00:00:00Z`;
 
         const taskData = {
           title: task.title,
