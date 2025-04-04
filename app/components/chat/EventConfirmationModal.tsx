@@ -20,6 +20,7 @@ interface EventConfirmationModalProps {
   onCancel: () => void;
   eventCount: number;
   currentEventIndex: number;
+  isTaskPlanEvent?: boolean;
 }
 
 const EventConfirmationModal = ({
@@ -28,7 +29,8 @@ const EventConfirmationModal = ({
   onConfirm,
   onCancel,
   eventCount,
-  currentEventIndex
+  currentEventIndex,
+  isTaskPlanEvent = false
 }: EventConfirmationModalProps) => {
   const { title, description, location, startTime, endTime } = eventDetails;
   
@@ -53,7 +55,9 @@ const EventConfirmationModal = ({
         <View className="flex-1 justify-center items-center">
           <View className="bg-stone-900 w-11/12 p-5 rounded-lg">
             <View className="flex-row justify-between items-center mb-4">
-              <Text className="text-white text-2xl font-bold">Confirm Calendar Event</Text>
+              <Text className="text-white text-2xl font-bold">
+                {isTaskPlanEvent ? "Confirm Task" : "Confirm Calendar Event"}
+              </Text>
               <TouchableOpacity onPress={onCancel} className="p-2">
                 <Ionicons name="close" size={24} color="#9CA3AF" />
               </TouchableOpacity>
@@ -61,7 +65,7 @@ const EventConfirmationModal = ({
             
             {eventCount > 1 && (
               <Text className="text-teal-500 mb-3">
-                Event {currentEventIndex + 1} of {eventCount}
+                {isTaskPlanEvent ? `Task ${currentEventIndex + 1} of ${eventCount}` : `Event ${currentEventIndex + 1} of ${eventCount}`}
               </Text>
             )}
             
@@ -99,7 +103,9 @@ const EventConfirmationModal = ({
                 onPress={onConfirm}
                 className="flex-1 bg-teal-600 rounded-2xl py-3 mr-2 items-center justify-center"
               >
-                <Text className="text-white font-semibold">Add to Calendar</Text>
+                <Text className="text-white font-semibold">
+                  {isTaskPlanEvent ? "Add to Calendar" : "Add to Calendar"}
+                </Text>
               </TouchableOpacity>
               <TouchableOpacity
                 onPress={onCancel}

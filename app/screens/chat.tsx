@@ -8,6 +8,7 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 import { useUser } from '@contexts/UserContext';
 import { createChat, getMessages, getUserChats, sendMessage } from '@components/utils/chatManagement';
 import { ChatMessage, MessageInput, WelcomeOverlay, Message, EventConfirmationModal } from '@components/chat';
+import TaskPlanConfirmationModal from '@components/chat/TaskPlanConfirmationModal';
 import { useTasks } from '@contexts/TasksContext';
 import { updateUserStreak } from '@components/utils/userManagement';
 
@@ -26,6 +27,10 @@ export default function Chat() {
   const [currentEventIndex, setCurrentEventIndex] = useState(0);
   const { tasks, refreshTasks } = useTasks();
   const [dailyStreakCheckIn, setDailyStreakCheckIn] = useState(false);
+  const [isTaskPlanning, setIsTaskPlanning] = useState(false);
+  const [taskPlanContext, setTaskPlanContext] = useState<string>('');
+  const [taskPlanData, setTaskPlanData] = useState<any>(null);
+  const [showTaskPlanConfirmation, setShowTaskPlanConfirmation] = useState(false);
 
   const scrollToBottom = () => {
     if (scrollViewRef.current) {
@@ -120,6 +125,15 @@ export default function Chat() {
               - Do I have time for lunch tomorrow?
               - What are my high priority tasks?
               - When is my [specific event] scheduled?
+
+              TASK PLANNING:
+              If the user wants to plan out a task (with phrases like "help me plan", "break down this project", "create a schedule for", "organize my task"), respond with JSON in this format:
+              {"isTaskPlanning": true, "needsMoreInfo": boolean, "followUpQuestion": "question if more info needed", "taskPlan": {"title": "Main task title", "description": "Overall description", "subtasks": [{"title": "Subtask 1", "description": "Details", "startTime": "ISO", "endTime": "ISO", "priority": 1-10}, ...]}}
+              
+              Only set needsMoreInfo to true if you don't have essential information like:
+              - What the overall task/project is
+              - When it needs to be completed by (deadline)
+              - Any specific requirements or constraints
               
               For calendar requests:
               If a user is asking to add one or more events to their calendar, extract the details for each event in the user's local time zone (${Intl.DateTimeFormat().resolvedOptions().timeZone}) and respond with JSON in this format:
@@ -283,11 +297,11 @@ export default function Chat() {
         return "I need access to your Google Calendar to add events. Please sign in with Google first.";
       }
 
-      // Then use it when adding to calendar
+      // Create event object with task plan metadata if present
       const event = {
         summary: eventDetails.title,
         description: eventDetails.description || "",
-        location: eventDetails.location || "",  // Add location field
+        location: eventDetails.location || "",
         start: {
           dateTime: ensureCorrectTimezone(eventDetails.startTime),
           timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone
@@ -295,6 +309,13 @@ export default function Chat() {
         end: {
           dateTime: ensureCorrectTimezone(eventDetails.endTime),
           timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone
+        },
+        // Add extended properties for task plan metadata
+        extendedProperties: {
+          private: {
+            isTaskPlanEvent: eventDetails.isTaskPlanEvent ? 'true' : 'false',
+            priority: eventDetails.priority?.toString() || "5"
+          }
         }
       };
 
@@ -312,7 +333,13 @@ export default function Chat() {
       if (response.status === 200 || response.status === 201) {
         const eventDate = format(parseISO(eventDetails.startTime), 'MMMM do, yyyy');
         const eventTime = format(parseISO(eventDetails.startTime), 'h:mm a');
-        return `I've added "${eventDetails.title}" to your calendar on ${eventDate} at ${eventTime}.`;
+        
+        // Different message for task plan events
+        if (eventDetails.isTaskPlanEvent) {
+          return `I've added the task "${eventDetails.title}" to your calendar on ${eventDate} at ${eventTime}.`;
+        } else {
+          return `I've added "${eventDetails.title}" to your calendar on ${eventDate} at ${eventTime}.`;
+        }
       } else {
         return "I had trouble adding that to your calendar. Please try again.";
       }
@@ -479,23 +506,126 @@ export default function Chat() {
     setMessage('');
     setIsLoading(true);
 
-    // Update the try block in the handleSend function
     try {
-      // Analyze message with OpenAI/Gemini
-      const analysis = await analyzeWithOpenAI(message);
+      // If we're in the middle of task planning, add context to the message
+      let messageToAnalyze = message;
+      if (isTaskPlanning && taskPlanContext) {
+        messageToAnalyze = `[Task Planning Context: ${taskPlanContext}] User response: ${message}`;
+      }
+      
+      const analysis = await analyzeWithOpenAI(messageToAnalyze);
 
+      // Handle task planning responses
+      if (analysis.isTaskPlanning) {
+        setIsTaskPlanning(true);
+        
+        if (analysis.needsMoreInfo) {
+          // Need more information - ask follow-up question
+          setTaskPlanContext(analysis.followUpQuestion);
+          
+          const botResponse = {
+            id: (Date.now() + 1).toString(),
+            text: analysis.followUpQuestion,
+            sender: 'bot' as const,
+            timestamp: new Date()
+          };
+
+          try {
+            await sendMessage(chatId, botResponse);
+          } catch (error) {
+            console.log("Error syncing messages with the server:", error);
+          }
+
+          setMessages(prev => [...prev, botResponse]);
+        } else {
+          // Got all information needed for task planning
+          setIsTaskPlanning(false);
+          setTaskPlanContext('');
+          setTaskPlanData(analysis.taskPlan);
+          
+          // Create a summary of the task plan
+          let summaryText = `I've created a plan for "${analysis.taskPlan.title}":\n\n`;
+          
+          analysis.taskPlan.subtasks.forEach((subtask: any, index: number) => {
+            const startDate = format(parseISO(subtask.startTime), 'MMM d, h:mm a');
+            summaryText += `${index + 1}. ${subtask.title} (${startDate})\n`;
+          });
+          
+          summaryText += "\nWould you like me to add these items to your calendar?";
+          
+          const botResponse = {
+            id: (Date.now() + 1).toString(),
+            text: summaryText,
+            sender: 'bot' as const,
+            timestamp: new Date()
+          };
+
+          try {
+            await sendMessage(chatId, botResponse);
+          } catch (error) {
+            console.log("Error syncing messages with the server:", error);
+          }
+
+          setMessages(prev => [...prev, botResponse]);
+          
+          // Show the task plan confirmation modal
+          setShowTaskPlanConfirmation(true);
+        }
+        
+        setIsLoading(false);
+        return;
+      }
+      
+      // Handle regular "yes" responses to task plan suggestions
+      if (isTaskPlanning && taskPlanData && 
+          (message.toLowerCase().includes('yes') || 
+           message.toLowerCase().includes('add') || 
+           message.toLowerCase().includes('ok'))) {
+        // User wants to add the task plan to calendar
+        setPendingEvents(taskPlanData.subtasks.map((subtask: any) => ({
+          title: subtask.title,
+          description: `${subtask.description}\n\nPart of task plan: ${taskPlanData.title}`,
+          startTime: subtask.startTime,
+          endTime: subtask.endTime,
+          location: "",
+          priority: subtask.priority,
+          isTaskPlanEvent: true
+        })));
+        setCurrentEventIndex(0);
+        setShowEventConfirmation(true);
+        setIsTaskPlanning(false);
+        setTaskPlanContext('');
+        
+        const botResponse = {
+          id: (Date.now() + 1).toString(),
+          text: "Great! I'll add these tasks to your calendar. Please confirm each one.",
+          sender: 'bot' as const,
+          timestamp: new Date()
+        };
+        
+        try {
+          await sendMessage(chatId, botResponse);
+        } catch (error) {
+          console.log("Error syncing messages with the server:", error);
+        }
+        
+        setMessages(prev => [...prev, botResponse]);
+        setIsLoading(false);
+        return;
+      }
+      
+      // Handle existing calendar event analysis
       if (analysis.isCalendarEvent && analysis.events && analysis.events.length > 0) {
-        // Store multiple events and show first confirmation
+        // Existing handling for calendar events
         setPendingEvents(analysis.events);
         setCurrentEventIndex(0);
         setShowEventConfirmation(true);
         setIsLoading(false);
       }
       else if (analysis.isCalendarSummaryRequest) {
-        // Generate full calendar summary
+        // Existing handling for calendar summary
         const summaryText = await getCalendarSummary();
 
-        // Add bot response to messages
         const botResponse = {
           id: (Date.now() + 1).toString(),
           text: summaryText,
@@ -513,10 +643,9 @@ export default function Chat() {
         setIsLoading(false);
       }
       else if (analysis.isSpecificTimeQuery) {
-        // Generate time-specific calendar query
+        // Existing handling for time-specific queries
         const summaryText = getSpecificTimeEvents(analysis.timePeriod);
         
-        // Add bot response to messages
         const botResponse = {
           id: (Date.now() + 1).toString(),
           text: analysis.response || summaryText,
@@ -536,7 +665,6 @@ export default function Chat() {
         // Normal conversation flow
         const responseText = analysis.response;
 
-        // Add bot response to messages
         const botResponse = {
           id: (Date.now() + 1).toString(),
           text: responseText,
@@ -556,7 +684,6 @@ export default function Chat() {
     } catch (error) {
       console.error("Error processing message:", error);
 
-      // Add error message
       const errorMessage = {
         id: (Date.now() + 1).toString(),
         text: "Sorry, I encountered an error processing your request.",
@@ -660,7 +787,7 @@ export default function Chat() {
     }
   };
 
-  // Add this new function to handle PDF selection
+  // Update the handlePdfSelected function
   const handlePdfSelected = async (pdfText: string, filename: string) => {
     if (!chatId) return;
 
@@ -684,19 +811,49 @@ export default function Chat() {
 
     try {
       // Analyze the PDF content with AI
-      const analysis = await analyzeWithOpenAI(pdfText);
+      const analysis = await analyzeWithOpenAI(
+        `Extract any task planning information, calendars, schedules or events from this PDF: ${pdfText}`
+      );
 
-      if (analysis.isCalendarEvent && analysis.events && analysis.events.length > 0) {
-        // Store multiple events and show first confirmation
+      // Handle task planning content in PDFs
+      if (analysis.isTaskPlanning) {
+        setTaskPlanData(analysis.taskPlan);
+        
+        // Create a summary of the task plan
+        let summaryText = `I found a task plan in your PDF for "${analysis.taskPlan.title}":\n\n`;
+        
+        analysis.taskPlan.subtasks.forEach((subtask: any, index: number) => {
+          const startDate = format(parseISO(subtask.startTime), 'MMM d, h:mm a');
+          summaryText += `${index + 1}. ${subtask.title} (${startDate})\n`;
+        });
+        
+        summaryText += "\nWould you like me to add these items to your calendar?";
+        
+        const botResponse = {
+          id: (Date.now() + 1).toString(),
+          text: summaryText,
+          sender: 'bot',
+          timestamp: new Date()
+        };
+
+        try {
+          await sendMessage(chatId, botResponse);
+        } catch (error) {
+          console.log("Error syncing messages with the server:", error);
+        }
+
+        setMessages(prev => [...prev, botResponse]);
+        setShowTaskPlanConfirmation(true);
+      } 
+      // Process other types of responses as before
+      else if (analysis.isCalendarEvent && analysis.events && analysis.events.length > 0) {
+        // Existing code for handling calendar events
         setPendingEvents(analysis.events);
         setCurrentEventIndex(0);
         setShowEventConfirmation(true);
-      }
-      else if (analysis.isCalendarSummaryRequest) {
-        // Generate calendar summary
+      } else if (analysis.isCalendarSummaryRequest) {
         const summaryText = await getCalendarSummary();
 
-        // Add bot response to messages
         const botResponse = {
           id: (Date.now() + 1).toString(),
           text: summaryText,
@@ -712,10 +869,8 @@ export default function Chat() {
 
         setMessages(prev => [...prev, botResponse]);
       } else {
-        // Normal conversation flow
         const responseText = analysis.response;
 
-        // Add bot response to messages
         const botResponse = {
           id: (Date.now() + 1).toString(),
           text: responseText,
@@ -734,7 +889,6 @@ export default function Chat() {
     } catch (error) {
       console.error("Error processing PDF:", error);
 
-      // Add error message
       const errorMessage = {
         id: (Date.now() + 1).toString(),
         text: "Sorry, I encountered an error processing your PDF.",
@@ -746,6 +900,46 @@ export default function Chat() {
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const handleConfirmTaskPlan = () => {
+    if (!taskPlanData) return;
+    
+    // Convert task plan to pending events format
+    setPendingEvents(taskPlanData.subtasks.map((subtask: any) => ({
+      title: subtask.title,
+      description: `${subtask.description}\n\nPart of task plan: ${taskPlanData.title}`,
+      startTime: subtask.startTime,
+      endTime: subtask.endTime,
+      location: "",
+      priority: subtask.priority,
+      isTaskPlanEvent: true
+    })));
+    
+    setCurrentEventIndex(0);
+    setShowEventConfirmation(true);
+    setShowTaskPlanConfirmation(false);
+  };
+
+  const handleCancelTaskPlan = () => {
+    setTaskPlanData(null);
+    setShowTaskPlanConfirmation(false);
+    
+    // Add response about cancellation
+    const botResponse = {
+      id: Date.now().toString(),
+      text: "I've cancelled adding the task plan to your calendar.",
+      sender: 'bot',
+      timestamp: new Date()
+    };
+    
+    try {
+      sendMessage(chatId!, botResponse);
+    } catch (error) {
+      console.log("Error syncing messages with the server:", error);
+    }
+    
+    setMessages(prev => [...prev, botResponse]);
   };
 
   return (
@@ -802,6 +996,15 @@ export default function Chat() {
           onCancel={handleCancelEvent}
           eventCount={pendingEvents.length}
           currentEventIndex={currentEventIndex}
+          isTaskPlanEvent={pendingEvents[currentEventIndex]?.isTaskPlanEvent || false}
+        />
+      )}
+      {taskPlanData && (
+        <TaskPlanConfirmationModal
+          visible={showTaskPlanConfirmation}
+          taskPlan={taskPlanData}
+          onConfirm={handleConfirmTaskPlan}
+          onCancel={handleCancelTaskPlan}
         />
       )}
     </KeyboardAvoidingView>
