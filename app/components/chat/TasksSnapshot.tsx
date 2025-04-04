@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { View, Text, ActivityIndicator, TouchableOpacity } from 'react-native';
 import { router } from 'expo-router';
 import { useTasks } from '@contexts/TasksContext';
@@ -6,6 +6,11 @@ import TaskItem from '../TaskItem';
 
 const TasksSnapshot = () => {
   const { tasks, isLoading } = useTasks();
+
+  // Always sort by priority in the snapshot view
+  const sortedTasks = useMemo(() => {
+    return [...tasks].sort((a, b) => b.priority - a.priority);
+  }, [tasks]);
 
   if (isLoading && tasks.length === 0) {
     return (
@@ -18,7 +23,7 @@ const TasksSnapshot = () => {
 
   // Show up to 3 tasks in the snapshot
   const SHOW_TASKS = 3;
-  const upcomingTasks = tasks.slice(0, SHOW_TASKS);
+  const upcomingTasks = sortedTasks.slice(0, SHOW_TASKS);
 
   // In the snapshot, these are disabled/no-op functions as we don't want to edit directly
   // from the snapshot - users should go to the tasks page for full functionality

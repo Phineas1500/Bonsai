@@ -1,18 +1,23 @@
 import { View, Text, ScrollView, ActivityIndicator, RefreshControl, TouchableOpacity, Alert } from 'react-native';
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useState, useMemo } from 'react';
 import { useUser } from '@contexts/UserContext';
 import TaskItem from '@components/TaskItem';
 import { useTasks, TaskItemData } from '@contexts/TasksContext';
 import GradientText from '../components/GradientText';
 import TaskModal from '@components/TaskModal';
-import { AntDesign } from '@expo/vector-icons';
+import { AntDesign, MaterialIcons } from '@expo/vector-icons';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
+
+// Define sort options
+type SortOption = 'priority' | 'date' | 'title';
 
 export default function Tasks() {
   const { userInfo } = useUser();
   const { tasks, isLoading, error, refreshTasks, addTask, updateTask, deleteTask, isCalendarLinked } = useTasks();
   const [refreshing, setRefreshing] = useState(false);
   const [filter, setFilter] = useState<'all' | 'events' | 'tasks'>('all');
+  const [sortBy, setSortBy] = useState<SortOption>('priority');
+  const [sortMenuVisible, setSortMenuVisible] = useState(false);
   const [modalVisible, setModalVisible] = useState(false);
   const [editingTask, setEditingTask] = useState<TaskItemData | undefined>(undefined);
 
@@ -22,13 +27,39 @@ export default function Tasks() {
     setRefreshing(false);
   }, [refreshTasks]);
 
-  // Filter tasks based on selected filter
-  const filteredTasks = tasks.filter(task => {
-    if (filter === 'all') return true;
-    if (filter === 'events') return !task.isTask;
-    if (filter === 'tasks') return task.isTask;
-    return true;
-  });
+  // First filter, then sort the tasks
+  const processedTasks = useMemo(() => {
+    // Filter tasks based on selected filter
+    const filtered = tasks.filter(task => {
+      if (filter === 'all') return true;
+      if (filter === 'events') return !task.isTask;
+      if (filter === 'tasks') return task.isTask;
+      return true;
+    });
+
+    // Sort tasks based on selected sort option
+    return [...filtered].sort((a, b) => {
+      if (sortBy === 'priority') {
+        return b.priority - a.priority; // Higher priority first
+      } else if (sortBy === 'date') {
+        return new Date(a.startTime).getTime() - new Date(b.startTime).getTime(); // Earlier dates first
+      } else if (sortBy === 'title') {
+        return a.title.localeCompare(b.title); // Alphabetical
+      }
+      return 0;
+    });
+  }, [tasks, filter, sortBy]);
+
+  // Toggle sort menu visibility
+  const toggleSortMenu = () => {
+    setSortMenuVisible(!sortMenuVisible);
+  };
+
+  // Handle sort option selection
+  const handleSortSelection = (option: SortOption) => {
+    setSortBy(option);
+    setSortMenuVisible(false);
+  };
 
   // Handle edit task
   const handleEditTask = (task: TaskItemData) => {
@@ -78,8 +109,7 @@ export default function Tasks() {
   };
 
   const taskComponents = () => {
-    // Tasks are already sorted by priority in the TasksContext
-    return filteredTasks.map((taskItem: TaskItemData) => (
+    return processedTasks.map((taskItem: TaskItemData) => (
       <React.Fragment key={taskItem.id}>
         <TaskItem
           itemData={taskItem}
@@ -91,13 +121,59 @@ export default function Tasks() {
     ));
   };
 
+  // Get label for sort button
+  const getSortButtonLabel = () => {
+    switch (sortBy) {
+      case 'priority':
+        return 'Priority';
+      case 'date':
+        return 'Date';
+      case 'title':
+        return 'Title';
+      default:
+        return 'Sort';
+    }
+  };
+
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <View className="flex-1 flex-col items-start bg-stone-950 px-6 pt-6">
         <View className="w-full items-center justify-center">
           <GradientText classStyle="text-center text-4xl font-black" text="All Items" size={[200, 50]} />
 
-          <View className="w-full flex-row justify-center mt-4">
+          {/* Filters and Sort Options */}
+          <View className="w-full flex-row justify-between">
+            {/* SORT OPTIONS */}
+            <View className="relative">
+              <TouchableOpacity
+                onPress={toggleSortMenu}
+                className="bg-neutral-800 p-2 rounded-lg flex-row items-center">
+                <MaterialIcons name="sort" size={16} color="white" />
+              </TouchableOpacity>
+
+              {/* Sort Options Menu */}
+              {sortMenuVisible && (
+                <View className="absolute top-10 left-0 bg-stone-800 rounded-lg p-1 z-10 shadow-lg min-w-[120px]">
+                  <TouchableOpacity
+                    onPress={() => handleSortSelection('priority')}
+                    className={`p-2 rounded ${sortBy === 'priority' ? 'bg-teal-800' : ''}`}>
+                    <Text className="text-white">Priority</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    onPress={() => handleSortSelection('date')}
+                    className={`p-2 rounded ${sortBy === 'date' ? 'bg-teal-800' : ''}`}>
+                    <Text className="text-white">Date</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    onPress={() => handleSortSelection('title')}
+                    className={`p-2 rounded ${sortBy === 'title' ? 'bg-teal-800' : ''}`}>
+                    <Text className="text-white">Title</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+            </View>
+
+            { /* FILTER OPTIONS - tHE MIDDLE OPTIONS */}
             <View className="flex-row">
               <TouchableOpacity
                 onPress={() => setFilter('all')}
@@ -115,15 +191,16 @@ export default function Tasks() {
                 <Text className="text-white">Tasks</Text>
               </TouchableOpacity>
             </View>
-          </View>
 
-          <TouchableOpacity
-            onPress={handleAddTask}
-            className="bg-teal-600 w-6 h-6 rounded-full justify-center items-center self-end -mt-7 shadow-lg"
-            disabled={!isCalendarLinked}
-          >
-            <AntDesign name="plus" size={12} color="white" />
-          </TouchableOpacity>
+            {/* ADD TASKS BUTTON */}
+            <TouchableOpacity
+              onPress={handleAddTask}
+              className="bg-teal-700 w-8 h-8 rounded-lg justify-center items-center shadow-lg"
+              disabled={!isCalendarLinked}
+            >
+              <AntDesign name="plus" size={12} color="white" />
+            </TouchableOpacity>
+          </View>
 
           {!isCalendarLinked && (
             <Text className="text-yellow-500 text-xs mt-2 text-center">
@@ -150,7 +227,7 @@ export default function Tasks() {
               <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#14b8a6" />
             }
           >
-            {filteredTasks.length > 0 ? taskComponents() : (
+            {processedTasks.length > 0 ? taskComponents() : (
               <Text className="text-gray-400 text-center mt-8">
                 {isCalendarLinked ? "No items found" : "Connect Google Calendar to view tasks"}
               </Text>
@@ -166,7 +243,7 @@ export default function Tasks() {
           onSave={handleSaveTask}
           task={editingTask}
           isGoogleCalendarLinked={isCalendarLinked}
-          onSuccess={refreshTasks} // Add this prop to refresh after save
+          onSuccess={refreshTasks}
         />
       </View>
     </GestureHandlerRootView>

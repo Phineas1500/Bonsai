@@ -12,7 +12,7 @@ import { NotificationPayload } from "../components/utils/notificationAPI";
 import { getUserByEmail } from "../components/utils/userManagement";
 
 interface NotificationContextType {
-    enableNotifications: () => Promise<void>;
+    enableNotifications: () => Promise<boolean | undefined>;
     expoPushToken: string | null;
     notifications: Notifications.Notification[];
     error: Error | null;
