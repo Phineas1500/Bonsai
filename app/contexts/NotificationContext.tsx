@@ -43,6 +43,7 @@ export function NotificationProvider({ children }: { children: React.ReactNode})
     const [expoPushToken, setExpoPushToken] = useState<string | null>(null);
     const [notifications, setNotifications] = useState<Notifications.Notification[]>([]);
     const [error, setError] = useState<Error | null>(null);
+    const [preferencesLoading, setPreferencesLoading] = useState(true);
 
     const notificationListener = useRef<Notifications.EventSubscription>();
     const responseListener = useRef<Notifications.EventSubscription>();
@@ -114,12 +115,19 @@ export function NotificationProvider({ children }: { children: React.ReactNode})
      */
     const fetchNotificationPreferences = async () => {
       try {
+        setPreferencesLoading(true);
         //if no user email then can't fetch notifications yet
-        if (!userInfo?.email) return;
+        if (!userInfo?.email) {
+          setPreferencesLoading(false);
+          return;
+        }
 
         //check if user has notification preferences set 
         const userDoc = await getUserByEmail(userInfo.email);
-        if (!userDoc) return;
+        if (!userDoc) {
+          setPreferencesLoading(false);
+          return;
+        }
 
         const userInfoSnap: UserInfo = userDoc.data() as UserInfo;
         const preferences = userInfoSnap.notificationPreferences;
@@ -135,8 +143,10 @@ export function NotificationProvider({ children }: { children: React.ReactNode})
           updateNotificationPreferences(DEFAULT_NOTIFICATION_PREFERENCES, userInfo.email);
         }
 
+        setPreferencesLoading(false);
       } catch (error: any) {
         console.error("Error fetching notification preferences", error);
+        setPreferencesLoading(false);
       }
     }
 
@@ -149,6 +159,8 @@ export function NotificationProvider({ children }: { children: React.ReactNode})
     const updateNotificationPreferences = async (newPreferences: Partial<NotificationPreferences>, email: string) => {
       try {
         const currentPrefs = userInfo?.notificationPreferences ?? DEFAULT_NOTIFICATION_PREFERENCES;
+        console.log("Current preferences: ", currentPrefs);
+        console.log("New preferences: ", newPreferences);
 
         const mergedPrefs: NotificationPreferences = {
           ...currentPrefs,
@@ -435,16 +447,32 @@ export function NotificationProvider({ children }: { children: React.ReactNode})
     }
 
     const requestInitialNotificationPermissions = async () => {
+      // Don't proceed if we haven't loaded preferences yet
+      if (preferencesLoading) {
+        console.log("Waiting for preferences to load before requesting permissions");
+        return;
+      }
+      
       // Skip if user already has notification preferences set (they've already been asked)
       if (userInfo?.notificationPreferences?.hasBeenPrompted) {
         return;
       }
       
       try {
-        // Check if permissions are already granted
+        // NEW: Check if there are existing preferences in Firebase first
+        if (userInfo?.email) {
+          const userDocRef = doc(db, "users", userInfo.email);
+          const userDocSnap = await getDoc(userDocRef);
+          
+          if (userDocSnap.exists() && userDocSnap.data().notificationPreferences) {
+            console.log("Found existing notification preferences in Firebase, using those");
+            return;
+          }
+        }
+
+        // Rest of function remains unchanged
         const { status: existingStatus } = await Notifications.getPermissionsAsync();
         
-        // If permissions are already determined, update the preferences accordingly
         if (existingStatus !== 'undetermined') {
           const isEnabled = existingStatus === 'granted';
           
