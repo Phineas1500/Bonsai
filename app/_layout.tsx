@@ -9,6 +9,16 @@ import { NotificationProvider, useNotification } from './contexts/NotificationCo
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { useUser } from './contexts/UserContext';
 
+//this is necessary to show notifications
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldShowAlert: true,
+    shouldPlaySound: true,
+    shouldSetBadge: true,
+  }),
+});
+
+
 // Create a wrapper component to use hooks
 function AppContent() {
   const { requestInitialNotificationPermissions } = useNotification();
