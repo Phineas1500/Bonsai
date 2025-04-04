@@ -1,5 +1,6 @@
 import { Feather } from "@expo/vector-icons";
 import { Image, Text, TouchableOpacity, View } from "react-native";
+import { useUser } from "../contexts/UserContext";
 
 interface UserLabelProps {
   onPress?: () => void;
@@ -18,6 +19,10 @@ export default function UserLabel({
   friend = false,
   me = false
 }: UserLabelProps) {
+  const {userInfo} = useUser();
+  const seed = encodeURIComponent(username);
+  const avatarUrl = `https://api.dicebear.com/9.x/fun-emoji/png?seed=${seed}`
+  console.log(avatarUrl);
   return (
     <TouchableOpacity
       onPress={onPress}
@@ -27,7 +32,7 @@ export default function UserLabel({
     >
       <View className="flex-row items-center mx-4">
         <Image
-          source={require('@assets/images/bonsai-logo.png')}
+          source={{ uri: avatarUrl }}
           className="h-9 w-9 rounded-full object-cover bg-white"
           resizeMode="contain"
         />
