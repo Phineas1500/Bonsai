@@ -120,7 +120,10 @@ export default function Settings() {
     //handle selecting the type of notifications
     const currentTriggers = notificationPreferences.triggers;
 
-    const availableTriggers = ["tasks", "friend-requests"]
+    const triggerOptions = [
+        { label: "Tasks", value: "tasks"},
+        { label: "Friend Requests", value: "friend-requests" }
+    ]
 
     const toggleTrigger = (trigger: string) => {
         if (!userInfo?.email) {
@@ -138,28 +141,15 @@ export default function Settings() {
     //handle selecting notification frequency 
     const currentOffsets = notificationPreferences.reminderOffsets;
     const frequencyOptions = [
-        "When it starts",
-        "5 minutes before",
-        "10 minutes before"
+        { label: "When it starts", value: 0 },
+        { label: "5 minutes before", value: 5 },
+        { label: "10 minutes before", value: 10 }
     ]
 
-    const toggleFrequency = (frequency: string) => {
+    const toggleFrequency = (minuteOffset: number) => {
         if (!userInfo?.email) {
             console.error("User email isn't available when trying to query notification frequency");
             return;
-        }
-
-        let minuteOffset = 0;
-        switch (frequency) {
-            case "When it starts":
-                minuteOffset = 0
-                break;
-            case "5 minutes before":
-                minuteOffset = 5
-                break;
-            case "10 minutes before":
-                minuteOffset = 10;
-                break;
         }
 
         const updatedOffsets = currentOffsets.includes(minuteOffset)
@@ -167,22 +157,6 @@ export default function Settings() {
           : [...currentOffsets, minuteOffset];
 
         updateNotificationPreferences({ reminderOffsets: updatedOffsets }, userInfo.email);
-    }
-
-    const isFrequencyEnabled = (frequency: string) => {
-        let minuteOffset = 0;
-        switch (frequency) {
-            case "When it starts":
-                minuteOffset = 0
-                break;
-            case "5 minutes before":
-                minuteOffset = 5
-                break;
-            case "10 minutes before":
-                minuteOffset = 10;
-                break;
-        }
-        return currentOffsets.includes(minuteOffset);
     }
 
     return (
@@ -237,29 +211,29 @@ export default function Settings() {
                     {/* Notification preferences */}
                     <View className="border-b mb-4 border-gray-800">
                         <Text className="text-white font-bold text-sm mb-1">What do you want to be notified about?</Text>
-                        {availableTriggers.map(trigger => (
-                            <View key={trigger} className="flex-row items-center justify-between py-2">
-                            <Text className="text-white font-thin capitalize">{trigger}</Text>
+                        {triggerOptions.map(trigger => (
+                            <View key={trigger.value} className="flex-row items-center justify-between py-2">
+                            <Text className="text-white font-thin capitalize">{trigger.label}</Text>
                             <Switch
-                                value={currentTriggers.includes(trigger)}
-                                onValueChange={() => toggleTrigger(trigger)}
+                                value={currentTriggers.includes(trigger.value)}
+                                onValueChange={() => toggleTrigger(trigger.value)}
                                 trackColor={{ false: "#ccc", true: "#81b0ff" }}
-                                thumbColor={currentTriggers.includes(trigger) ? "#007aff" : "#f4f3f4"}
+                                thumbColor={currentTriggers.includes(trigger.value) ? "#007aff" : "#f4f3f4"}
                             />
                         </View>
                         ))}
                     </View>
+                    {/* Notifications frequency */}
                     <View className="order-b mb-4 border-gray-800">
-                        {/* Notifications frequency */}
                         <Text className="text-white text-sm mb-1">How frequently do you want to be notified?</Text>
-                        {frequencyOptions.map(freqStr => (
-                            <View key={freqStr} className="flex-row items-center justify-between py-2">
-                            <Text className="text-white capitalize font-thin">{freqStr}</Text>
+                        {frequencyOptions.map(freqOption => (
+                            <View key={freqOption.value} className="flex-row items-center justify-between py-2">
+                            <Text className="text-white capitalize font-thin">{freqOption.label}</Text>
                             <Switch
-                                value={isFrequencyEnabled(freqStr)}
-                                onValueChange={() => toggleFrequency(freqStr)}
+                                value={currentOffsets.includes(freqOption.value)}
+                                onValueChange={() => toggleFrequency(freqOption.value)}
                                 trackColor={{ false: "#ccc", true: "#81b0ff" }}
-                                thumbColor={isFrequencyEnabled(freqStr) ? "#007aff" : "#f4f3f4"}
+                                thumbColor={currentOffsets.includes(freqOption.value) ? "#007aff" : "#f4f3f4"}
                             />
                         </View>
                         ))}
