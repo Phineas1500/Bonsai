@@ -14,15 +14,15 @@ interface MessageInputProps {
   clearUploadedContent?: () => void;
 }
 
-const MessageInput = ({ 
-  value, 
-  onChangeText, 
-  onSend, 
+const MessageInput = ({
+  value,
+  onChangeText,
+  onSend,
   onPdfSelected,
-  disabled, 
+  disabled,
   onFocus,
   uploadedContent,
-  clearUploadedContent 
+  clearUploadedContent
 }: MessageInputProps) => {
   return (
     <KeyboardAvoidingView
@@ -32,10 +32,10 @@ const MessageInput = ({
       <View className="px-6 translate-y-1">
         {uploadedContent && (
           <View className="flex-row bg-teal-900/30 rounded-t-lg px-4 py-2 items-center border-t border-l border-r border-teal-700/50">
-            <Ionicons name={uploadedContent.filename.endsWith('.pdf') ? 
-              "document-text" : "image"} 
-              size={16} 
-              color="#14b8a6" 
+            <Ionicons name={uploadedContent.filename.endsWith('.pdf') ?
+              "document-text" : "image"}
+              size={16}
+              color="#14b8a6"
             />
             <Text className="text-teal-100 text-sm ml-2 flex-1" numberOfLines={1} ellipsizeMode="middle">
               {uploadedContent.filename}
@@ -45,11 +45,11 @@ const MessageInput = ({
             </TouchableOpacity>
           </View>
         )}
-        
+
         <View className={`flex-row bg-stone-800 border border-stone-600 ${uploadedContent ? 'rounded-b-lg' : 'rounded-t-lg'} pr-2 pb-12`}>
           <View className="flex-row items-center px-2">
-            <PdfUploader 
-              onPdfSelected={onPdfSelected} 
+            <PdfUploader
+              onPdfSelected={onPdfSelected}
               disabled={false}
             />
           </View>

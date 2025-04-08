@@ -288,7 +288,7 @@ export default function Profile() {
             {!isCurrentUser && userInfo && (
               <View className="items-center mt-3">
                 <TouchableOpacity
-                  className={`flex-row items-center justify-center px-8 py-2 rounded-full ${friendStatus === 'friends' ? 'bg-teal-500' :
+                  className={`flex-row items-center justify-center px-8 py-2 rounded-full ${friendStatus === 'friends' ? 'bg-teal-600' :
                       friendStatus === 'outgoing' ? 'bg-orange-800' :
                         friendStatus === 'incoming' ? 'bg-blue-800' :
                           'bg-teal-800'

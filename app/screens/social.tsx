@@ -1,11 +1,12 @@
-import { Keyboard, ScrollView, Text, TouchableWithoutFeedback, View, RefreshControl, FlatList, TouchableOpacity, Alert, ActivityIndicator } from 'react-native';
+import { Keyboard, ScrollView, Text, TouchableWithoutFeedback, View, RefreshControl, TouchableOpacity, Alert, ActivityIndicator } from 'react-native';
 import React, { useEffect, useState } from 'react';
 import UserLabel from '@components/UserLabel';
-import SearchBar from '@components/SearchBar';
 import { getAllUsernames, getIncomingFriendRequests, getUserByEmail, acceptFriendRequest, rejectFriendRequest, getUserFriendsUsernames } from '@components/utils/userManagement';
 import { router } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
 import { auth } from '@/firebaseConfig';
+import FriendsList from '@components/social/FriendsList';
+import ProjectsList from '@components/social/ProjectsList';
 
 interface FriendRequest {
   email: string;
@@ -13,15 +14,14 @@ interface FriendRequest {
 }
 
 export default function Social() {
-  const [searchText, setSearchText] = useState('');
   const [allUsernames, setAllUsernames] = useState<string[]>([]);
-  const [searchedUsernames, setSearchedUsernames] = useState<string[]>([]);
   const [friends, setFriends] = useState<string[]>([]);
   const [friendRequests, setFriendRequests] = useState<FriendRequest[]>([]);
   const [loadingRequests, setLoadingRequests] = useState(false);
   const [processingRequest, setProcessingRequest] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [loadingPage, setLoadingPage] = useState(false);
+  const [activeTab, setActiveTab] = useState<'friends' | 'projects'>('friends');
 
   // loads all relevant data on page load
   useEffect(() => {
@@ -94,18 +94,6 @@ export default function Social() {
     fetchListFriends();
   };
 
-  // filters through list of all usernames based on user's search
-  useEffect(() => {
-    if (searchText.length > 0) {
-      const filteredUsernames = allUsernames.filter((allUsernames) =>
-        allUsernames.toLowerCase().includes(searchText.toLowerCase())).sort();
-      setSearchedUsernames(filteredUsernames);
-    }
-    else {
-      setSearchedUsernames([]);
-    }
-  }, [searchText, allUsernames]);
-
   // navigate to profile page with the selected username
   const handleUserPress = (username: string) => {
     router.push({
@@ -155,7 +143,7 @@ export default function Social() {
   return (
     <>
       <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
-        <View className="flex-1 flex-col items-start bg-stone-950 px-6 pt-6">
+        <View className="flex-1 flex-col items-start bg-stone-950 px-6">
           <ScrollView
             className="w-full"
             refreshControl={
@@ -204,60 +192,46 @@ export default function Social() {
               </View>
             )}
 
-            {/* Search Section */}
+            {/* Content Section */}
             <View className="w-full px-2 mb-4">
-              <SearchBar
-                value={searchText}
-                onChangeText={setSearchText}
-                placeholder="Search users..."
-                classStyle="mb-4"
-              />
-              {/* If user is typing in the user search bar */}
-              {searchedUsernames.length > 0 ? (
-                <View>
-                  {searchedUsernames.map((username, index) => (
-                    <UserLabel
-                      key={index}
-                      username={username}
-                      onPress={() => handleUserPress(username)}
-                      classStyle="mb-2"
-                      friend={friends.includes(username)}
-                    />
-                  ))}
-                </View>
-              ) : (
-                <View>
-                  <View className="flex-row items-center mb-2">
-                    <Text className="text-white text-lg mr-2">Friends</Text>
-                    <Feather name="users" size={18} color="white" />
+              {/* Tab Navigation */}
+              <View className="flex-row mb-4 border-b border-gray-800">
+                <TouchableOpacity
+                  className={`flex-1 py-2 ${activeTab === 'friends' ? 'border-b-2 border-teal-600' : ''}`}
+                  onPress={() => setActiveTab('friends')}
+                >
+                  <View className="flex-row justify-center items-center">
+                    <Feather name="users" size={18} color={activeTab === 'friends' ? '#14b8a6' : 'white'} />
+                    <Text className={`ml-2 text-base ${activeTab === 'friends' ? 'text-teal-600 font-medium' : 'text-white'}`}>
+                      Friends
+                    </Text>
                   </View>
-                  {friends.length > 0 ? (
-                    // If user isn't typing in user search bar and has friends
-                    <View>
-                      {friends.map((username, index) => (
-                        <UserLabel
-                          key={index}
-                          username={username}
-                          onPress={() => handleUserPress(username)}
-                          classStyle="mb-2"
-                        />
-                      ))}
-                    </View>
-                  ) : (
-                    // If the user isn't typing in the user search bar and has no friends
-                    <View>
-                      {(loadingPage || refreshing) ? (
-                        <View className="flex-1 justify-center items-center">
-                          <ActivityIndicator size="large" color="#14b8a6" />
-                        </View>
-                      ) : (
-                        <View>
-                          <Text className="text-white text-center">You have not added anyone as a friend yet!</Text>
-                        </View>
-                      )}
-                    </View>
-                  )}
-                </View>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  className={`flex-1 py-2 ${activeTab === 'projects' ? 'border-b-2 border-teal-600' : ''}`}
+                  onPress={() => setActiveTab('projects')}
+                >
+                  <View className="flex-row justify-center items-center">
+                    <Feather name="folder" size={18} color={activeTab === 'projects' ? '#14b8a6' : 'white'} />
+                    <Text className={`ml-2 text-base ${activeTab === 'projects' ? 'text-teal-600 font-medium' : 'text-white'}`}>
+                      Projects
+                    </Text>
+                  </View>
+                </TouchableOpacity>
+              </View>
+
+              {/* Content based on active tab */}
+              {activeTab === 'friends' ? (
+                <FriendsList
+                  friends={friends}
+                  loadingPage={loadingPage}
+                  refreshing={refreshing}
+                  handleUserPress={handleUserPress}
+                  allUsernames={allUsernames} // Pass allUsernames for search
+                />
+              ) : (
+                <ProjectsList />
               )}
             </View>
           </ScrollView>

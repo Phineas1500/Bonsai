@@ -110,7 +110,7 @@ export default function Settings() {
         if (newVal) {
             await enableNotifications();
         }
-        
+
         const newPrefs : Partial<NotificationPreferences> = {
             notificationsEnabled: newVal
         }
@@ -134,11 +134,11 @@ export default function Settings() {
         const updatedTriggers = currentTriggers.includes(trigger)
           ? currentTriggers.filter(t => t !== trigger)
           : [...currentTriggers, trigger];
-        
+
         updateNotificationPreferences({ triggers: updatedTriggers }, userInfo.email);
     };
 
-    //handle selecting notification frequency 
+    //handle selecting notification frequency
     const currentOffsets = notificationPreferences.reminderOffsets;
     const frequencyOptions = [
         { label: "When it starts", value: 0 },
@@ -161,8 +161,8 @@ export default function Settings() {
 
     return (
         <>
-        <ScrollView className='flex-1'>
-            <View className="flex-1 flex-col items-start bg-stone-950 p-6">
+        <ScrollView className='flex-1 bg-stone-950'>
+            <View className="flex-1 flex-col items-start p-6">
                 <View className="w-full mb-6">
                     <Text className="text-white text-lg mb-2">Account</Text>
                     <TouchableOpacity
@@ -206,7 +206,7 @@ export default function Settings() {
                             onValueChange={toggleNotifications}
                             value={switchEnabled}
                         />
-                        
+
                     </View>
                     {/* Notification preferences */}
                     <View className="border-b mb-4 border-gray-800">
@@ -255,8 +255,8 @@ export default function Settings() {
                                 value={notificationPreferences.priorityNotificationsEnabled}
                                 onValueChange={() => {
                                     if (!userInfo?.email) return;
-                                    updateNotificationPreferences({ 
-                                        priorityNotificationsEnabled: !notificationPreferences.priorityNotificationsEnabled 
+                                    updateNotificationPreferences({
+                                        priorityNotificationsEnabled: !notificationPreferences.priorityNotificationsEnabled
                                     }, userInfo.email);
                                 }}
                                 trackColor={{ false: "#ccc", true: "#81b0ff" }}
