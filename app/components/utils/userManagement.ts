@@ -193,6 +193,78 @@ export const getAllUsernames = async () => {
   return usernames;
 };
 
+// Username-email caching system to reduce database calls
+const usernameByEmailCache = new Map<string, string>();
+const emailByUsernameCache = new Map<string, string>();
+
+/**
+ * Gets a username for an email with caching
+ */
+export const getUsernameByEmail = async (email: string): Promise<string> => {
+  if (!email) return '';
+  if (email === 'bot') return 'Bonsai';
+
+  // Check cache first
+  if (usernameByEmailCache.has(email)) {
+    return usernameByEmailCache.get(email) || '';
+  }
+
+  try {
+    const userDoc = await getUserByEmail(email);
+    if (userDoc) {
+      const username = userDoc.data().username;
+      // Update both caches
+      usernameByEmailCache.set(email, username);
+      emailByUsernameCache.set(username, email);
+      return username;
+    }
+  } catch (error) {
+    console.error("Error getting username:", error);
+  }
+
+  return "";
+};
+
+/**
+ * Gets an email for a username with caching
+ */
+export const getEmailByUsername = async (username: string): Promise<string> => {
+  if (!username) return '';
+
+  // Check cache first
+  if (emailByUsernameCache.has(username)) {
+    return emailByUsernameCache.get(username) || '';
+  }
+
+  try {
+    const userDoc = await getUserByUsername(username);
+    if (userDoc) {
+      const email = userDoc.data().email;
+      // Update both caches
+      emailByUsernameCache.set(username, email);
+      usernameByEmailCache.set(email, username);
+      return email;
+    }
+  } catch (error) {
+    console.error("Error getting email:", error);
+  }
+
+  return ''; // No fallback for email
+};
+
+/**
+ * Creates a map of usernames to emails for a list of emails
+ */
+export const getUsernamesForEmails = async (emails: string[]): Promise<Record<string, string>> => {
+  const result: Record<string, string> = {};
+
+  await Promise.all(emails.map(async (email) => {
+    const username = await getUsernameByEmail(email);
+    result[email] = username;
+  }));
+
+  return result;
+};
 
 /////////////////////////////// Friend management functions ///////////////////////////////////////
 

@@ -74,7 +74,8 @@ export const getMessages = async (chatId: string) => {
         id: doc.id,
         text: data.text,
         sender: data.sender,
-        timestamp: data.timestamp?.toDate ? data.timestamp.toDate() : new Date(), //ensure valid Date object
+        senderUsername: data.senderUsername,
+        timestamp: data.timestamp,
       }
       return currentMessage;
     });
@@ -110,6 +111,7 @@ export const sendMessage = async (chatId: string, message: Message) => {
     await addDoc(messagesRef, {
       text: message.text,
       sender: message.sender, //either user email or 'bot'
+      senderUsername: message.senderUsername,
       timestamp: message.timestamp
     });
 

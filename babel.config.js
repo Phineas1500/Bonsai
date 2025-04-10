@@ -14,6 +14,7 @@ module.exports = function (api) {
             '@components': './app/components',
             '@screens': './app/screens',
             '@contexts': './app/contexts',
+            '@types': './app/types',
           },
         },
       ],

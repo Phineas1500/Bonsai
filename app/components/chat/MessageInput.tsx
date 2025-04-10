@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, TextInput, TouchableOpacity, KeyboardAvoidingView, Platform, Text } from 'react-native';
+import { View, TextInput, TouchableOpacity, KeyboardAvoidingView, Platform, Text, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import PdfUploader from './PdfUploader';
 
@@ -7,11 +7,13 @@ interface MessageInputProps {
   value: string;
   onChangeText: (text: string) => void;
   onSend: () => void;
-  onPdfSelected: (text: string, filename: string) => void;
+  onPdfSelected?: (text: string, filename: string) => void;
   disabled?: boolean;
   onFocus?: () => void;
   uploadedContent?: {text: string, filename: string} | null;
   clearUploadedContent?: () => void;
+  showPdfUploader?: boolean;
+  isLoading?: boolean;
 }
 
 const MessageInput = ({
@@ -19,10 +21,12 @@ const MessageInput = ({
   onChangeText,
   onSend,
   onPdfSelected,
-  disabled,
+  disabled = false,
   onFocus,
   uploadedContent,
-  clearUploadedContent
+  clearUploadedContent,
+  showPdfUploader = true,
+  isLoading = false
 }: MessageInputProps) => {
   return (
     <KeyboardAvoidingView
@@ -47,12 +51,14 @@ const MessageInput = ({
         )}
 
         <View className={`flex-row bg-stone-800 border border-stone-600 ${uploadedContent ? 'rounded-b-lg' : 'rounded-t-lg'} pr-2 pb-12`}>
-          <View className="flex-row items-center px-2">
-            <PdfUploader
-              onPdfSelected={onPdfSelected}
-              disabled={false}
-            />
-          </View>
+          {showPdfUploader && onPdfSelected && (
+            <View className="flex-row items-center px-2">
+              <PdfUploader
+                onPdfSelected={onPdfSelected}
+                disabled={false}
+              />
+            </View>
+          )}
           <TextInput
             className="flex-1 text-white px-2 py-3"
             placeholder="Type a message..."
@@ -64,12 +70,16 @@ const MessageInput = ({
           />
           <TouchableOpacity
             onPress={onSend}
-            disabled={disabled && !uploadedContent}
-            className={`p-2 rounded-full ${disabled && !uploadedContent ? 'opacity-50' : ''}`}
+            disabled={disabled || isLoading}
+            className={`p-2 rounded-full self-end mb-1 ${(disabled || isLoading) ? 'opacity-50' : ''}`}
           >
-            <View className="bg-teal-500 rounded-full p-2">
-              <Ionicons name="chevron-up" size={16} color="white" />
-            </View>
+            {isLoading ? (
+              <ActivityIndicator size="small" color="#14b8a6" />
+            ) : (
+              <View className="bg-teal-500 rounded-full p-2">
+                <Ionicons name="chevron-up" size={16} color="white" />
+              </View>
+            )}
           </TouchableOpacity>
         </View>
       </View>
