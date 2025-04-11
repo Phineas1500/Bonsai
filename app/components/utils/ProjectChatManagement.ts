@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { doc, getDoc, collection, addDoc, query, orderBy, onSnapshot, serverTimestamp, Timestamp } from 'firebase/firestore';
 import { db } from '@/firebaseConfig';
-import { getUserByEmail } from './userManagement';
+import { getUsernameFromEmail } from './userManagement';
 
 // Type for project members with both email and username
 export interface ProjectMember {
@@ -22,12 +22,10 @@ export interface ProjectData {
   name: string;
   createdAt: Timestamp;
   creatorEmail: string;
-  members: ProjectMember[]; // Now using ProjectMember type
+  members: ProjectMember[];
   pendingInvites: string[]; // Still just emails for pending
 }
 
-// Cache for usernames to avoid repeated lookups
-const usernameCache = new Map<string, string>();
 
 export function useProjectChat(projectId: string, currentUserEmail: string) {
   const [project, setProject] = useState<ProjectData | null>(null);
@@ -44,32 +42,7 @@ export function useProjectChat(projectId: string, currentUserEmail: string) {
     return new Date(date).toLocaleString();
   };
 
-  // Helper function to get username from email
-  const getUsernameFromEmail = async (email: string): Promise<string> => {
-    // Check cache first
-    if (usernameCache.has(email)) {
-      return usernameCache.get(email) as string;
-    }
-
-    // For bot messages
-    if (email === 'bot') return 'Bonsai';
-
-    try {
-      const userDoc = await getUserByEmail(email);
-      if (userDoc) {
-        const username = userDoc.data().username;
-        // Cache for future use
-        usernameCache.set(email, username);
-        return username;
-      }
-      return "";
-    } catch (error) {
-      console.error('Error getting username for email:', error);
-      return "";
-    }
-  };
-
-  // Fetch project details - handle conversion from old format to new
+  // Fetch project details
   useEffect(() => {
     if (!projectId) return;
 
@@ -80,32 +53,14 @@ export function useProjectChat(projectId: string, currentUserEmail: string) {
 
         if (projectSnap.exists()) {
           const rawData = projectSnap.data();
-
-          // Convert members to include usernames if they're in old format (just emails)
-          let membersWithUsernames: ProjectMember[] = [];
-
-          if (Array.isArray(rawData.members)) {
-            // If stored as simple array of emails, convert to new format
-            const memberEmails = rawData.members as string[];
-
-            // Get usernames for all members
-            const memberPromises = memberEmails.map(async (email) => {
-              const username = await getUsernameFromEmail(email);
-              return { email, username };
-            });
-
-            membersWithUsernames = await Promise.all(memberPromises);
-          } else if (rawData.members && typeof rawData.members === 'object') {
-            // If already in new format, use as is
-            membersWithUsernames = rawData.members;
-          }
+          console.log(rawData.members);
 
           setProject({
             id: projectSnap.id,
             name: rawData.name,
             createdAt: rawData.createdAt,
             creatorEmail: rawData.creatorEmail,
-            members: membersWithUsernames,
+            members: rawData.members as ProjectMember[] || [],
             pendingInvites: rawData.pendingInvites || []
           });
         } else {

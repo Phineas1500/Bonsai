@@ -34,6 +34,7 @@ type FriendshipStatus = 'none' | 'friends' | 'incoming' | 'outgoing' | 'error';
 
 export default function Profile() {
   const { username: usernameParam } = useLocalSearchParams<{ username: string }>();
+  const { userInfo: contextUserInfo } = useUser();
   const [userInfo, setUserInfo] = useState<UserInfo | null>(null);
   const [loading, setLoading] = useState(true);
   const [isCurrentUser, setIsCurrentUser] = useState(true);
@@ -76,35 +77,24 @@ export default function Profile() {
           throw new Error('User not found');
         }
       }
-      // Otherwise load the current user from auth
-      else {
-        const user = auth.currentUser;
-
-        if (user && user.email) {
-          // load user information from firestore
-          const userDoc = await getUserByEmail(user.email);
-
-          if (userDoc) {
-            const data = userDoc.data();
-            const userData: UserInfo = {
-              email: data.email,
-              username: data.username,
-              signinType: data.signinType,
-              createdAt: data.createdAt,
-              friends: data.friends || [],
-              incomingFriendRequests: data.incomingFriendRequests || [],
-              outgoingFriendRequests: data.outgoingFriendRequests || [],
-              streak: data.streak || 0,
-              lastCheckInDate: data.lastCheckInDate || "0"
-            };
-            setUserInfo(userData);
-            setIsCurrentUser(true);
-          } else {
-            throw new Error('Error loading user info: null userDoc');
-          }
-        } else {
-          throw new Error('Error loading user info: null user or email');
-        }
+      // Otherwise use the current user from context
+      else if (contextUserInfo) {
+        // Use the user info from context
+        const userData: UserInfo = {
+          email: contextUserInfo.email,
+          username: contextUserInfo.username,
+          signinType: contextUserInfo.signinType || 'email', // Default to email if not set
+          createdAt: contextUserInfo.createdAt || new Date().toISOString(),
+          friends: contextUserInfo.friends || [],
+          incomingFriendRequests: contextUserInfo.incomingFriendRequests || [],
+          outgoingFriendRequests: contextUserInfo.outgoingFriendRequests || [],
+          streak: contextUserInfo.streak || 0,
+          lastCheckInDate: contextUserInfo.lastCheckInDate || "0"
+        };
+        setUserInfo(userData);
+        setIsCurrentUser(true);
+      } else {
+        throw new Error('User info not available in context');
       }
     } catch (err: any) {
       // error in loading user info

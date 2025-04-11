@@ -7,6 +7,11 @@ import { deleteChat } from '@components/utils/chatManagement';
 import { sendPushNotification } from './notificationAPI';
 import { NotificationPreferences } from '@/app/contexts/NotificationContext';
 
+// Add a cache for user documents
+const userCache = new Map();
+// Add a cache for usernames (maps from email to username) (usernameCache.get(email))
+const usernameCache = new Map<string, string>();
+
 export const createUserDocument = async (email: string, username: string, signinType: string) => {
   const docRef = doc(db, 'users', email.toLowerCase());
   const docSnap = await getDoc(docRef);
@@ -28,21 +33,25 @@ export const createUserDocument = async (email: string, username: string, signin
   }
 };
 
-export const getUserByEmail = async (email: string) => {
-  const userDocRef = doc(db, 'users', email.toLowerCase());
-  const userDocSnap = await getDoc(userDocRef);
-
-  if (!userDocSnap.exists()) {
-    return null;
+export async function getUserByEmail(email: string) {
+  // Check cache first
+  if (userCache.has(email)) {
+    return userCache.get(email);
   }
 
-  // Return direct data instead of a function
-  const userData = userDocSnap.data();
-  return {
-    id: email.toLowerCase(),
-    data: () => userData // Still keeps the same interface but with fresh data
-  };
-};
+  // If not in cache, fetch from Firestore
+  const q = query(collection(db, "users"), where("email", "==", email.toLowerCase()));
+  const querySnapshot = await getDocs(q);
+
+  if (!querySnapshot.empty) {
+    const userDoc = querySnapshot.docs[0];
+    // Store in cache
+    userCache.set(email, userDoc);
+    return userDoc;
+  }
+
+  return null;
+}
 
 export const getUserByUsername = async (username: string) => {
   const q = query(collection(db, 'users'), where('username', '==', username));
@@ -193,78 +202,6 @@ export const getAllUsernames = async () => {
   return usernames;
 };
 
-// Username-email caching system to reduce database calls
-const usernameByEmailCache = new Map<string, string>();
-const emailByUsernameCache = new Map<string, string>();
-
-/**
- * Gets a username for an email with caching
- */
-export const getUsernameByEmail = async (email: string): Promise<string> => {
-  if (!email) return '';
-  if (email === 'bot') return 'Bonsai';
-
-  // Check cache first
-  if (usernameByEmailCache.has(email)) {
-    return usernameByEmailCache.get(email) || '';
-  }
-
-  try {
-    const userDoc = await getUserByEmail(email);
-    if (userDoc) {
-      const username = userDoc.data().username;
-      // Update both caches
-      usernameByEmailCache.set(email, username);
-      emailByUsernameCache.set(username, email);
-      return username;
-    }
-  } catch (error) {
-    console.error("Error getting username:", error);
-  }
-
-  return "";
-};
-
-/**
- * Gets an email for a username with caching
- */
-export const getEmailByUsername = async (username: string): Promise<string> => {
-  if (!username) return '';
-
-  // Check cache first
-  if (emailByUsernameCache.has(username)) {
-    return emailByUsernameCache.get(username) || '';
-  }
-
-  try {
-    const userDoc = await getUserByUsername(username);
-    if (userDoc) {
-      const email = userDoc.data().email;
-      // Update both caches
-      emailByUsernameCache.set(username, email);
-      usernameByEmailCache.set(email, username);
-      return email;
-    }
-  } catch (error) {
-    console.error("Error getting email:", error);
-  }
-
-  return ''; // No fallback for email
-};
-
-/**
- * Creates a map of usernames to emails for a list of emails
- */
-export const getUsernamesForEmails = async (emails: string[]): Promise<Record<string, string>> => {
-  const result: Record<string, string> = {};
-
-  await Promise.all(emails.map(async (email) => {
-    const username = await getUsernameByEmail(email);
-    result[email] = username;
-  }));
-
-  return result;
-};
 
 /////////////////////////////// Friend management functions ///////////////////////////////////////
 
@@ -621,5 +558,34 @@ const ensureFriendArrays = async (email: string) => {
       await updateDoc(userRef, updates);
       console.log(`Updated friend arrays for user: ${email}`);
     }
+  }
+};
+
+/**
+ * Gets a USERNAME for an email with caching
+ */
+export const getUsernameFromEmail = async (email: string): Promise<string> => {
+  if (!email) return "";
+
+  // Check cache first
+  if (usernameCache.has(email)) {
+    return usernameCache.get(email) as string;
+  }
+
+  // For bot messages
+  if (email === 'bot') return 'Bonsai';
+
+  try {
+    const userDoc = await getUserByEmail(email);
+    if (userDoc) {
+      const username = userDoc.data().username;
+      // Cache for future use
+      usernameCache.set(email, username);
+      return username;
+    }
+    return "";
+  } catch (error) {
+    console.error('Error getting username for email:', error);
+    return "";
   }
 };

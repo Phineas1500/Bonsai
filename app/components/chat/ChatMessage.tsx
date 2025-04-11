@@ -2,9 +2,8 @@ import React from 'react';
 import { View, Text, Image } from 'react-native';
 import { format } from 'date-fns';
 import { Timestamp } from 'firebase/firestore';
-import { auth } from '@/firebaseConfig';
+import { useUser } from '@contexts/UserContext';
 
-const user = auth.currentUser;
 
 export interface Message {
   id: string;
@@ -47,19 +46,21 @@ const formatTimestamp = (timestamp: Timestamp): string => {
 };
 
 const ChatMessage = ({ message, isProjectChat = false }: ChatMessageProps) => {
+  const { userInfo } = useUser();
+
   const isBot = message.sender === 'bot';
-  const isOwnMessage = !isBot && message.senderUsername === (user?.displayName);
+  const isSelf = message.sender === userInfo?.email;
 
   // Extract username for avatar generation
   let avatarUrl = '';
-  if (message.senderUsername === 'bot' || message.senderUsername === 'Bonsai') {
+  if (isBot) {
     avatarUrl = Image.resolveAssetSource(require('@assets/images/bonsai-logo.png')).uri;
   } else {
     const seed = encodeURIComponent(message.senderUsername);
     avatarUrl = `https://api.dicebear.com/9.x/fun-emoji/png?seed=${seed}`;
   }
 
-  if (isBot || (isProjectChat && !isOwnMessage)) {
+  if (isBot || !isSelf) {
     return (
       <View className="flex-row my-1">
         {isProjectChat && (

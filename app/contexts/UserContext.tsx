@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState, ReactNode } from "react";
+import React, { createContext, useContext, useEffect, useState, ReactNode, useCallback, useMemo } from "react";
 import { NotificationPreferences } from "./NotificationContext";
 
 export interface UserInfo {
@@ -16,6 +16,14 @@ export interface UserInfo {
         expires_at?: number; // Add expiration timestamp
     }
     notificationPreferences?: NotificationPreferences;
+    // Additional fields from Firestore
+    signinType?: string;
+    createdAt?: string;
+    friends?: string[];
+    incomingFriendRequests?: string[];
+    outgoingFriendRequests?: string[];
+    streak?: number;
+    lastCheckInDate?: string;
 };
 
 // Define the type for context
@@ -35,16 +43,23 @@ const UserContext = createContext<UserContextType>({
 export function UserProvider({ children }: {children: ReactNode}) {
     const [userInfo, setUserInfo] = useState<UserInfo | null>(null);
 
-    // Add a helper function to update specific fields without replacing the entire object
-    const updateUserInfo = (updates: Partial<UserInfo>) => {
+    // Memoize the updateUserInfo function to prevent it from changing on every render
+    const updateUserInfo = useCallback((updates: Partial<UserInfo>) => {
         setUserInfo(prevState => {
             if (!prevState) return updates as UserInfo;
             return { ...prevState, ...updates };
         });
-    };
+    }, []);
+
+    // Memoize the context value to prevent unnecessary re-renders
+    const contextValue = useMemo(() => ({
+        userInfo,
+        setUserInfo,
+        updateUserInfo
+    }), [userInfo, updateUserInfo]);
 
     return (
-        <UserContext.Provider value={{ userInfo, setUserInfo, updateUserInfo }}>
+        <UserContext.Provider value={contextValue}>
             {children}
         </UserContext.Provider>
     );

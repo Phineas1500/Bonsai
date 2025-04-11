@@ -5,20 +5,15 @@ import { db, auth } from '@/firebaseConfig';
 import { Feather } from '@expo/vector-icons';
 import { router } from 'expo-router';
 
-interface Project {
-  id: string;
-  name: string;
-  createdAt: any;
-  creatorEmail: string;
-  members: string[];
-}
+import { ProjectData, ProjectMember } from '../utils/projectChatManagement';
+
 
 interface ProjectsListProps {
   refreshTrigger?: boolean; // Can be used to trigger a refresh from parent
 }
 
 const ProjectsList = ({ refreshTrigger }: ProjectsListProps) => {
-  const [projects, setProjects] = useState<Project[]>([]);
+  const [projects, setProjects] = useState<ProjectData[]>([]);
   const [loading, setLoading] = useState(true);
   const currentUser = auth.currentUser;
 
@@ -30,14 +25,16 @@ const ProjectsList = ({ refreshTrigger }: ProjectsListProps) => {
     try {
       // Query for projects where the user is a member
       const projectsRef = collection(db, 'projects');
-      const q = query(projectsRef, where('members', 'array-contains', currentUser.email));
+      const q = query(projectsRef, where('members', 'array-contains',
+        {email: currentUser.email, username: currentUser.displayName}
+      ));
       const querySnapshot = await getDocs(q);
 
-      const projectList: Project[] = [];
+      const projectList: ProjectData[] = [];
       querySnapshot.forEach((doc) => {
         projectList.push({
           id: doc.id,
-          ...doc.data() as Omit<Project, 'id'>
+          ...doc.data() as Omit<ProjectData, 'id'>
         });
       });
 

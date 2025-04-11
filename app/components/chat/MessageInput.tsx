@@ -33,7 +33,7 @@ const MessageInput = ({
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       keyboardVerticalOffset={100}
     >
-      <View className="px-6 translate-y-1">
+      <View className="px-6">
         {uploadedContent && (
           <View className="flex-row bg-teal-900/30 rounded-t-lg px-4 py-2 items-center border-t border-l border-r border-teal-700/50">
             <Ionicons name={uploadedContent.filename.endsWith('.pdf') ?

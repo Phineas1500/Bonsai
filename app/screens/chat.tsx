@@ -196,19 +196,21 @@ export default function Chat() {
 
         {showWelcome && <WelcomeOverlay opacity={welcomeOpacity} />}
 
-        <MessageInput
-          value={message}
-          onChangeText={setMessage}
-          onSend={handleSendWithStreak}
-          onPdfSelected={(text, filename) => setUploadedContent({text, filename})}
-          disabled={isLoading || isProcessing || !message.trim()}
-          onFocus={() => {
-            fadeOutWelcome();
-            scrollToBottom();
-          }}
-          uploadedContent={uploadedContent}
-          clearUploadedContent={() => setUploadedContent(null)}
-        />
+        <View className='translate-y-1'>
+          <MessageInput
+            value={message}
+            onChangeText={setMessage}
+            onSend={handleSendWithStreak}
+            onPdfSelected={(text, filename) => setUploadedContent({ text, filename })}
+            disabled={isLoading || isProcessing || !message.trim()}
+            onFocus={() => {
+              fadeOutWelcome();
+              scrollToBottom();
+            }}
+            uploadedContent={uploadedContent}
+            clearUploadedContent={() => setUploadedContent(null)}
+          />
+        </View>
       </View>
 
       {pendingEvents.length > 0 && currentEventIndex < pendingEvents.length && (
