@@ -1,6 +1,8 @@
-import { db } from 'firebaseConfig';
+import { db, auth } from 'firebaseConfig';
 import { doc, addDoc, collection, where, query, getDocs, getDoc, setDoc, orderBy, deleteDoc } from 'firebase/firestore';
 import { Message } from '@components/chat';
+
+import { Content } from '@google/generative-ai';
 
 /**
  * Creates a chat document in the database in the 'chats' collection
@@ -122,5 +124,35 @@ export const sendMessage = async (chatId: string, message: Message) => {
     }, { merge: true });
   } catch (error) {
     console.error("Error sending message:", error);
+  }
+}
+
+export const getHistory = async () => {
+  try {
+    let history = [] as Content[];
+    const chats = await getUserChats(auth.currentUser?.email as string);
+    console.log(chats, chats.length, " ------- Chats found for user. -------");
+    if (chats.length > 0) {
+      const chatId = chats[0].id;
+
+      const messagesHistory = await getMessages(chatId);
+      for (const message of messagesHistory) {
+        history.push({
+          "role": message.senderUsername === 'Bonsai' ? 'model' : 'user',
+          "parts": [
+            {
+              "text": (message.senderUsername !== 'Bonsai' ? (message.senderUsername + ": ") : "") + message.text,
+            }
+          ]
+        });
+      }
+      return history;
+    } else {
+      console.log(" ------- No chats found for user. -------");
+      return [];
+    }
+  } catch (error) {
+    console.error("Error getting history:", error);
+    return [];
   }
 }

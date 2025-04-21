@@ -28,6 +28,7 @@ import { Timestamp } from 'firebase/firestore';
 
 import { useUser } from '@contexts/UserContext';
 import { useProjectChat } from '@components/utils/projectChatManagement';
+import AIService from '@contexts/AIService';
 import { ChatMessage, MessageInput, EventConfirmationModal } from '@components/chat';
 import { chatbot } from '@components/hooks/chatbotHook';
 import { useTasks } from '@contexts/TasksContext';
@@ -78,6 +79,29 @@ export default function ProjectScreen() {
 
     fetchPendingUsernames();
   }, [project?.pendingInvites]);
+
+  // Initialize AI service for project chat
+  useEffect(() => {
+    const initAI = async () => {
+      try {
+        const aiService = AIService.getInstance();
+        await aiService.initialize();
+      } catch (error) {
+        console.error("Error initializing AI service for project chat:", error);
+      }
+    };
+
+    initAI();
+
+    // Cleanup when component unmounts
+    return () => {
+      const projectChatId = projectId as string;
+      if (projectChatId) {
+        const aiService = AIService.getInstance();
+        aiService.resetChat(`project_${projectChatId}`);
+      }
+    };
+  }, [projectId]);
 
   // Create a message factory function for the AI hook with username support
   const createProjectMessage = (text: string, sender: string) => {

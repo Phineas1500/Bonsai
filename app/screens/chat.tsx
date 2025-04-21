@@ -10,6 +10,7 @@ import { useTasks } from '@contexts/TasksContext';
 import { updateUserStreak } from '@components/utils/userManagement';
 import { chatbot } from '@/app/components/hooks/chatbotHook';
 import { Timestamp } from 'firebase/firestore';
+import AIService from '@contexts/AIService';
 
 export default function Chat() {
   const [message, setMessage] = useState('');
@@ -64,10 +65,27 @@ export default function Chat() {
   useEffect(() => {
     const loadData = async () => {
       await refreshTasks(); // Make sure schedule data is fresh
+
+      // Initialize the AI service
+      try {
+        const aiService = AIService.getInstance();
+        await aiService.initialize();
+      } catch (error) {
+        console.error("Error initializing AI service:", error);
+      }
+
       await initializeChat();
     };
 
     loadData();
+
+    // Cleanup when component unmounts
+    return () => {
+      if (chatId) {
+        const aiService = AIService.getInstance();
+        aiService.resetChat(`personal_${chatId}`);
+      }
+    };
   }, []);
 
   // Scroll to bottom when new messages arrive
@@ -159,8 +177,8 @@ export default function Chat() {
   // Combine our custom handle send with streak check
   const handleSendWithStreak = async () => {
     const success = await handleSend(message);
+    setMessage('');
     if (success) {
-      setMessage('');
       handleDailyChatbotCheckIn();
     }
   };

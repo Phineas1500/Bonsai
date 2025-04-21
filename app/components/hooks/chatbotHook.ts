@@ -58,7 +58,7 @@ export function chatbot<msg extends MessageBase>({
           ? `Here's my question about this file: ${messageText}\n\nFile content: ${uploadedContent.text}`
           : `Extract any task planning information, calendars, schedules or events from this: ${uploadedContent.text}`;
 
-        return await analyzeWithAI(contentToAnalyze, formatScheduleForContext(tasks), isProjectChat);
+        return await analyzeWithAI(contentToAnalyze, formatScheduleForContext(tasks), isProjectChat, chatId);
       }
 
       // If we're in task planning mode, add context
@@ -66,7 +66,7 @@ export function chatbot<msg extends MessageBase>({
         messageText = `[Task Planning Context: ${taskPlanContext}] User response: ${messageText}`;
       }
 
-      return await analyzeWithAI(messageText, formatScheduleForContext(tasks), isProjectChat);
+      return await analyzeWithAI(messageText, formatScheduleForContext(tasks), isProjectChat, chatId);
     } catch (error) {
       console.error("Error processing message:", error);
       return {
@@ -156,6 +156,7 @@ export function chatbot<msg extends MessageBase>({
 
     const userMessage = createMessage(userMessageText, userInfo?.email || '');
 
+    setUploadedContent(null);
     try {
       await sendMessage(chatId, userMessage);
       setMessages(prev => [...prev, userMessage]);
@@ -183,8 +184,6 @@ export function chatbot<msg extends MessageBase>({
         setMessages(prev => [...prev, botMessage]);
       }
 
-      // Clear uploaded content after processing
-      setUploadedContent(null);
       return true;
     } catch (error) {
       console.error("Error sending message:", error);
