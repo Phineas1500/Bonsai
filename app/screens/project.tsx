@@ -161,10 +161,8 @@ export default function ProjectScreen() {
   // Handle sending project chat message
   const handleProjectSend = async () => {
     if (newMessage.trim()) {
+      setNewMessage('');
       const success = await handleSend(newMessage);
-      if (success) {
-        setNewMessage('');
-      }
     }
   };
 

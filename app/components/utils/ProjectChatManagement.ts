@@ -220,10 +220,10 @@ export const getProjectHistory = async (projectId: string) => {
     const messagesHistory = await getProjectMessages(projectId);
     for (const message of messagesHistory) {
       history.push({
-        "role": message.senderUsername === 'Bonsai' ? 'model' : 'user',
-        "parts": [
+        role: message.senderUsername === 'Bonsai' ? 'model' : 'user',
+        parts: [
           {
-            "text": (message.senderUsername !== 'Bonsai' ? (message.senderUsername + ": ") : "") + message.text,
+            text: (message.senderUsername !== 'Bonsai' ? (message.senderUsername + ": ") : "") + message.text,
           }
         ]
       });

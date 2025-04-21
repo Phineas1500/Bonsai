@@ -134,10 +134,10 @@ export const getHistory = async (chatId: string) => {
     const messagesHistory = await getMessages(chatId);
     for (const message of messagesHistory) {
       history.push({
-        "role": message.senderUsername === 'Bonsai' ? 'model' : 'user',
-        "parts": [
+        role: message.senderUsername === 'Bonsai' ? 'model' : 'user',
+        parts: [
           {
-            "text": message.text,
+            text: message.text,
           }
         ]
       });

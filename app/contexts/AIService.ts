@@ -29,7 +29,7 @@ class AIService {
       }
 
       this.genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
-      this.model = await this.genAI.getGenerativeModel({ model: "gemini-2.5-pro-exp-03-25" });
+      this.model = await this.genAI.getGenerativeModel({ model: "gemini-2.5-flash-preview-04-17" });
       this.initialized = true;
     } catch (error) {
       console.error("Error initializing AI service:", error);
@@ -79,6 +79,7 @@ class AIService {
       throw new Error(`Chat session with ID ${sessionId} not initialized`);
     }
 
+    // console.log(JSON.stringify(await chatSession.getHistory()));
     const result = await chatSession.sendMessage(message);
     return result.response.text();
   }

@@ -176,8 +176,8 @@ export default function Chat() {
 
   // Combine our custom handle send with streak check
   const handleSendWithStreak = async () => {
-    const success = await handleSend(message);
     setMessage('');
+    const success = await handleSend(message);
     if (success) {
       handleDailyChatbotCheckIn();
     }
