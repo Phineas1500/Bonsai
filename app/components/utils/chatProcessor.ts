@@ -123,15 +123,13 @@ export const analyzeWithAI = async (
 
     const sessionId = isProjectChat ? `project_${chatId}` : `personal_${chatId}`;
 
-    // initalize if needed
+    // initialize if needed
     if (!aiService.isSessionActive(sessionId)) {
-      // For project chats, don't use the personal chat history
-      await aiService.startChat(sessionId, sys_message, !isProjectChat);
+      await aiService.startChat(sessionId, sys_message);
     }
 
     let aiResponse = await aiService.sendMessage(sessionId, userMessage);
 
-    // Parse the JSON response
     try {
       // Remove AI_RESPONSE tags if present
       aiResponse = aiResponse.replace(/\[AI_RESPONSE\]/g, '').trim();

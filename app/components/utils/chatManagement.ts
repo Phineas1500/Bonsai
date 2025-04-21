@@ -127,30 +127,22 @@ export const sendMessage = async (chatId: string, message: Message) => {
   }
 }
 
-export const getHistory = async () => {
+export const getHistory = async (chatId: string) => {
   try {
     let history = [] as Content[];
-    const chats = await getUserChats(auth.currentUser?.email as string);
-    console.log(chats, chats.length, " ------- Chats found for user. -------");
-    if (chats.length > 0) {
-      const chatId = chats[0].id;
 
-      const messagesHistory = await getMessages(chatId);
-      for (const message of messagesHistory) {
-        history.push({
-          "role": message.senderUsername === 'Bonsai' ? 'model' : 'user',
-          "parts": [
-            {
-              "text": (message.senderUsername !== 'Bonsai' ? (message.senderUsername + ": ") : "") + message.text,
-            }
-          ]
-        });
-      }
-      return history;
-    } else {
-      console.log(" ------- No chats found for user. -------");
-      return [];
+    const messagesHistory = await getMessages(chatId);
+    for (const message of messagesHistory) {
+      history.push({
+        "role": message.senderUsername === 'Bonsai' ? 'model' : 'user',
+        "parts": [
+          {
+            "text": message.text,
+          }
+        ]
+      });
     }
+    return history;
   } catch (error) {
     console.error("Error getting history:", error);
     return [];

@@ -1,5 +1,6 @@
 import { GoogleGenerativeAI, GenerativeModel, ChatSession } from '@google/generative-ai';
 import { getHistory } from '@components/utils/chatManagement';
+import { getProjectHistory } from '@components/utils/projectChatManagement';
 
 // Singleton class to manage AI chat sessions
 class AIService {
@@ -36,7 +37,7 @@ class AIService {
     }
   }
 
-  public async startChat(sessionId: string, systemMessage: string, useHistory: boolean = true): Promise<void> {
+  public async startChat(sessionId: string, systemMessage: string): Promise<void> {
     if (!this.initialized) {
       await this.initialize();
     }
@@ -50,8 +51,14 @@ class AIService {
       maxOutputTokens: 2048,
     };
 
-    // Only fetch history for personal chats
-    const history = useHistory ? await getHistory() : [];
+    const chatId = sessionId.split('_')[1];
+    const isProjectChat = sessionId.split('_')[0] === 'project';
+    let history = [];
+    if (isProjectChat) {
+      history = await getProjectHistory(chatId);
+    } else {
+      history = await getHistory(chatId);
+    }
 
     const chatSession = this.model.startChat({
       generationConfig,

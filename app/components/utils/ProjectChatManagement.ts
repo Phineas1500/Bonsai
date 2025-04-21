@@ -1,7 +1,10 @@
 import { useState, useEffect } from 'react';
-import { doc, getDoc, collection, addDoc, query, orderBy, onSnapshot, serverTimestamp, Timestamp } from 'firebase/firestore';
+import { doc, getDoc, getDocs, collection, addDoc, query, orderBy, onSnapshot, serverTimestamp, Timestamp } from 'firebase/firestore';
 import { db } from '@/firebaseConfig';
 import { getUsernameFromEmail } from './userManagement';
+import { Message } from '@components/chat';
+
+import { Content } from '@google/generative-ai';
 
 // Type for project members with both email and username
 export interface ProjectMember {
@@ -181,4 +184,53 @@ export function useProjectChat(projectId: string, currentUserEmail: string) {
     getMemberByEmail,
     isCreator: project?.creatorEmail === currentUserEmail
   };
+}
+
+export const getProjectMessages = async (projectId: string) => {
+  try {
+    const messagesRef = collection(db, `projects/${projectId}/messages`);
+    const q = query(messagesRef, orderBy("timestamp", "asc"));
+
+    const snapshot = await getDocs(q);
+
+    //return a list of message objects
+    return snapshot.docs.map((doc) => {
+      const data = doc.data();
+      const currentMessage: Message = {
+        id: doc.id,
+        text: data.text,
+        sender: data.sender,
+        senderUsername: data.senderUsername,
+        timestamp: data.timestamp,
+      }
+      return currentMessage;
+    });
+
+  } catch (error) {
+    console.error("Error fetching messages:", error);
+    return [];
+  }
+};
+
+
+export const getProjectHistory = async (projectId: string) => {
+  try {
+    let history = [] as Content[];
+
+    const messagesHistory = await getProjectMessages(projectId);
+    for (const message of messagesHistory) {
+      history.push({
+        "role": message.senderUsername === 'Bonsai' ? 'model' : 'user',
+        "parts": [
+          {
+            "text": (message.senderUsername !== 'Bonsai' ? (message.senderUsername + ": ") : "") + message.text,
+          }
+        ]
+      });
+    }
+    return history;
+  } catch (error) {
+    console.error("Error getting history:", error);
+    return [];
+  }
 }
