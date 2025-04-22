@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { doc, getDoc, getDocs, collection, addDoc, query, orderBy, onSnapshot, serverTimestamp, Timestamp } from 'firebase/firestore';
+import { doc, getDoc, getDocs, collection, addDoc, query, orderBy, onSnapshot, serverTimestamp, Timestamp, limit, setDoc } from 'firebase/firestore';
 import { db } from '@/firebaseConfig';
 import { getUsernameFromEmail } from './userManagement';
 import { Message } from '@components/chat';
@@ -212,25 +212,97 @@ export const getProjectMessages = async (projectId: string) => {
   }
 };
 
-
-export const getProjectHistory = async (projectId: string) => {
+/**
+ * Saves a project chat summary to the database
+ */
+export const saveProjectChatSummary = async (projectId: string, summary: string): Promise<void> => {
   try {
-    let history = [] as Content[];
+    const summaryRef = collection(db, `projects/${projectId}/summaries`);
 
-    const messagesHistory = await getProjectMessages(projectId);
-    for (const message of messagesHistory) {
-      history.push({
-        role: message.senderUsername === 'Bonsai' ? 'model' : 'user',
-        parts: [
-          {
-            text: (message.senderUsername !== 'Bonsai' ? (message.senderUsername + ": ") : "") + message.text,
-          }
-        ]
+    // if existing summary exists, update it; otherwise create a new one
+    const existingQuery = query(summaryRef);
+    const existingDocs = await getDocs(existingQuery);
+
+    if (!existingDocs.empty) {
+      const existingDoc = existingDocs.docs[0];
+      await setDoc(doc(db, `projects/${projectId}/summaries`, existingDoc.id), {
+        text: summary,
+        timestamp: new Date()
+      });
+    } else {
+      await addDoc(summaryRef, {
+        text: summary,
+        timestamp: new Date()
       });
     }
+  } catch (error) {
+    console.error("Error saving project chat summary:", error);
+  }
+};
+
+/**
+ * Gets the latest project chat summary from the database
+ */
+export const getProjectChatSummary = async (projectId: string): Promise<string | null> => {
+  try {
+    const summaryRef = collection(db, `projects/${projectId}/summaries`);
+    const q = query(summaryRef, orderBy("timestamp", "desc"), limit(1));
+    const snapshot = await getDocs(q);
+
+    if (snapshot.empty) {
+      return null;
+    }
+
+    return snapshot.docs[0].data().text;
+  } catch (error) {
+    console.error("Error fetching project chat summary:", error);
+    return null;
+  }
+};
+
+// Gets project chat history + summary
+export const getProjectHistory = async (projectId: string) => {
+  try {
+    const summary = await getProjectChatSummary(projectId);
+
+    const messagesRef = collection(db, `projects/${projectId}/messages`);
+    const q = query(messagesRef, orderBy("timestamp", "desc"), limit(10));
+    const snapshot = await getDocs(q);
+
+    const recentMessages = snapshot.docs.map(doc => {
+      const data = doc.data();
+      return {
+        id: doc.id,
+        text: data.text,
+        sender: data.sender,
+        senderUsername: data.senderUsername,
+        timestamp: data.timestamp,
+      };
+    }).reverse();
+
+    let history: Content[] = [];
+
+    if (summary) {
+      history.push({
+        role: 'model',
+        parts: [{
+          text: `[CONVERSATION SUMMARY: ${summary}]`
+        }]
+      });
+    }
+
+    for (const message of recentMessages) {
+      history.push({
+        role: message.senderUsername === 'Bonsai' ? 'model' : 'user',
+        parts: [{
+          text: (message.senderUsername !== 'Bonsai' ? (message.senderUsername + ": ") : "") + message.text,
+        }]
+      });
+    }
+
     return history;
   } catch (error) {
-    console.error("Error getting history:", error);
+    console.error("Error getting project history:", error);
     return [];
   }
-}
+};
