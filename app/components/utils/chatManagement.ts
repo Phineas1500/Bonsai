@@ -1,6 +1,8 @@
-import { db } from 'firebaseConfig';
-import { doc, addDoc, collection, where, query, getDocs, getDoc, setDoc, orderBy, deleteDoc } from 'firebase/firestore';
+import { db, auth } from 'firebaseConfig';
+import { doc, addDoc, collection, where, query, getDocs, getDoc, setDoc, orderBy, deleteDoc, limit } from 'firebase/firestore';
 import { Message } from '@components/chat';
+
+import { Content } from '@google/generative-ai';
 
 /**
  * Creates a chat document in the database in the 'chats' collection
@@ -124,3 +126,156 @@ export const sendMessage = async (chatId: string, message: Message) => {
     console.error("Error sending message:", error);
   }
 }
+
+
+/**
+ * Saves a chat summary to the database
+ */
+export const saveChatSummary = async (chatId: string, summary: string, lastMessageId?: string): Promise<void> => {
+  try {
+    console.log("\tSaving chat summary:", summary);
+    const summaryRef = collection(db, `chats/${chatId}/summaries`);
+
+    // if existing summary exists, update it; otherwise create a new one
+    const existingQuery = query(summaryRef);
+    const existingDocs = await getDocs(existingQuery);
+
+    if (!existingDocs.empty) {
+      const existingDoc = existingDocs.docs[0];
+      await setDoc(doc(db, `chats/${chatId}/summaries`, existingDoc.id), {
+        text: summary,
+        timestamp: new Date(),
+        lastMessageId: lastMessageId || null
+      });
+    } else {
+      await addDoc(summaryRef, {
+        text: summary,
+        timestamp: new Date(),
+        lastMessageId: lastMessageId || null
+      });
+    }
+    console.log("ADDED SUMMARY TO FIRESTORE");
+  } catch (error) {
+    console.error("Error saving chat summary:", error);
+  }
+};
+
+/**
+ * Gets the latest chat summary from the database
+ */
+export const getChatSummary = async (chatId: string): Promise<{ text: string | null, lastMessageId: string | null }> => {
+  try {
+    const summaryRef = collection(db, `chats/${chatId}/summaries`);
+    const q = query(summaryRef, orderBy("timestamp", "desc"), limit(1));
+    const snapshot = await getDocs(q);
+
+    if (snapshot.empty) {
+      return { text: null, lastMessageId: null };
+    }
+
+    const data = snapshot.docs[0].data();
+    return {
+      text: data.text || null,
+      lastMessageId: data.lastMessageId || null
+    };
+  } catch (error) {
+    console.error("Error fetching chat summary:", error);
+    return { text: null, lastMessageId: null };
+  }
+};
+
+
+/**
+ * FUNCTION TO GET most recent messages after a certain message id
+ * @param pathPrefix - ('chats' or 'projects')
+ * @param id - chat or project id
+ * @param lastMessageId - doc id of last message that was summarized
+ */
+export const fetchMessagesWithFallback = async (
+  pathPrefix: string,
+  id: string,
+  lastMessageId: string | null
+): Promise<Message[]> => {
+  const messagesRef = collection(db, `${pathPrefix}/${id}/messages`);
+
+  // If we have a lastMessageId, try to fetch messages after that one
+  if (lastMessageId) {
+    try {
+      const lastMessageDoc = await getDoc(doc(db, `${pathPrefix}/${id}/messages`, lastMessageId));
+
+      if (lastMessageDoc.exists()) {
+        const timestamp = lastMessageDoc.data().timestamp;
+
+        const q = query(
+          messagesRef,
+          orderBy("timestamp", "asc"),
+          where("timestamp", ">", timestamp)
+        );
+
+        const snapshot = await getDocs(q);
+        return snapshot.docs.map(doc => {
+          const data = doc.data();
+          return {
+            id: doc.id,
+            text: data.text,
+            sender: data.sender,
+            senderUsername: data.senderUsername,
+            timestamp: data.timestamp,
+          };
+        });
+      }
+    } catch (error) {
+      console.error(`ERROR - lastMessageId doc didnt exist: ${error}`);
+    }
+  }
+
+  // Fallback: return the most recent messages
+  const q = query(messagesRef, orderBy("timestamp", "desc"), limit(20));
+  const snapshot = await getDocs(q);
+  return snapshot.docs.map(doc => {
+    const data = doc.data();
+    return {
+      id: doc.id,
+      text: data.text,
+      sender: data.sender,
+      senderUsername: data.senderUsername,
+      timestamp: data.timestamp,
+    };
+  }).reverse();
+};
+
+
+// Gets normal chat history + summary
+export const getHistory = async (chatId: string) => {
+  try {
+    const summaryData = await getChatSummary(chatId);
+    const summary = summaryData.text;
+
+    const recentMessages = await fetchMessagesWithFallback('chats', chatId, summaryData.lastMessageId);
+
+    let history: Content[] = [];
+
+    if (summary) {
+      history.push({
+        role: 'user',
+        parts: [{
+          text: `[CONVERSATION SUMMARY: ${summary}]`
+        }]
+      });
+    }
+
+    for (const message of recentMessages) {
+      history.push({
+        role: message.senderUsername === 'Bonsai' ? 'model' : 'user',
+        parts: [{
+          text: message.text,
+        }]
+      });
+    }
+
+    return history;
+  } catch (error) {
+    console.error("Error getting history:", error);
+    return [];
+  }
+};

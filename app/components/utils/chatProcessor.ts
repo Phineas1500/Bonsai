@@ -1,6 +1,7 @@
 import axios from 'axios';
 import { format, parseISO } from 'date-fns';
-import { GoogleGenerativeAI } from '@google/generative-ai';
+
+import AIService from '@contexts/AIService';
 
 // Define shared types for both chat contexts
 export interface ChatTask {
@@ -49,7 +50,8 @@ export interface ChatAnalysisResponse {
 export const analyzeWithAI = async (
   userMessage: string,
   scheduleContext: string,
-  isProjectChat: boolean = false
+  isProjectChat: boolean = false,
+  chatId: string = 'default'
 ): Promise<ChatAnalysisResponse> => {
   try {
     // Build the system message with the additional context about whether this is a project chat
@@ -117,33 +119,17 @@ export const analyzeWithAI = async (
 
             Remember, keep your response as a valid JSON format. Do not prepend your response with backticks.`;
 
-    const GEMINI_API_KEY = process.env.EXPO_PUBLIC_GEMINI_API_KEY;
-    if (!GEMINI_API_KEY) {
-      throw new Error('GEMINI_API_KEY is not defined');
+    const aiService = AIService.getInstance();
+
+    const sessionId = isProjectChat ? `project_${chatId}` : `personal_${chatId}`;
+
+    // initialize if needed
+    if (!aiService.isSessionActive(sessionId)) {
+      await aiService.startChat(sessionId, sys_message);
     }
 
-    const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
-    // const model = await genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
-    const model = await genAI.getGenerativeModel({ model: "gemini-2.5-pro-exp-03-25" });
-    // ok this is super slow, but should be much better
+    let aiResponse = await aiService.sendMessage(sessionId, userMessage);
 
-    const generationConfig = {
-      temperature: 0.2,
-      maxOutputTokens: 2048,
-    }
-
-    const chat = model.startChat({
-      generationConfig,
-      systemInstruction: {
-        role: 'system',
-        parts: [{text: sys_message}],
-      },
-    });
-
-    const result = await chat.sendMessage(userMessage);
-    let aiResponse = result.response.text();
-
-    // Parse the JSON response
     try {
       // Remove AI_RESPONSE tags if present
       aiResponse = aiResponse.replace(/\[AI_RESPONSE\]/g, '').trim();

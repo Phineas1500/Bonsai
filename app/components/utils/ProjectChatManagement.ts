@@ -1,7 +1,11 @@
 import { useState, useEffect } from 'react';
-import { doc, getDoc, collection, addDoc, query, orderBy, onSnapshot, serverTimestamp, Timestamp } from 'firebase/firestore';
+import { doc, getDoc, getDocs, collection, addDoc, query, orderBy, onSnapshot, serverTimestamp, Timestamp, limit, setDoc, where } from 'firebase/firestore';
 import { db } from '@/firebaseConfig';
 import { getUsernameFromEmail } from './userManagement';
+import { Message } from '@components/chat';
+
+import { Content } from '@google/generative-ai';
+import { fetchMessagesWithFallback } from './chatManagement';
 
 // Type for project members with both email and username
 export interface ProjectMember {
@@ -182,3 +186,119 @@ export function useProjectChat(projectId: string, currentUserEmail: string) {
     isCreator: project?.creatorEmail === currentUserEmail
   };
 }
+
+export const getProjectMessages = async (projectId: string) => {
+  try {
+    const messagesRef = collection(db, `projects/${projectId}/messages`);
+    const q = query(messagesRef, orderBy("timestamp", "asc"));
+
+    const snapshot = await getDocs(q);
+
+    //return a list of message objects
+    return snapshot.docs.map((doc) => {
+      const data = doc.data();
+      const currentMessage: Message = {
+        id: doc.id,
+        text: data.text,
+        sender: data.sender,
+        senderUsername: data.senderUsername,
+        timestamp: data.timestamp,
+      }
+      return currentMessage;
+    });
+
+  } catch (error) {
+    console.error("Error fetching messages:", error);
+    return [];
+  }
+};
+
+/**
+ * Saves a project chat summary to the database
+ */
+export const saveProjectChatSummary = async (projectId: string, summary: string, lastMessageId?: string): Promise<void> => {
+  try {
+    const summaryRef = collection(db, `projects/${projectId}/summaries`);
+
+    // if existing summary exists, update it; otherwise create a new one
+    const existingQuery = query(summaryRef);
+    const existingDocs = await getDocs(existingQuery);
+
+    if (!existingDocs.empty) {
+      const existingDoc = existingDocs.docs[0];
+      await setDoc(doc(db, `projects/${projectId}/summaries`, existingDoc.id), {
+        text: summary,
+        timestamp: new Date(),
+        lastMessageId: lastMessageId || null
+      });
+    } else {
+      await addDoc(summaryRef, {
+        text: summary,
+        timestamp: new Date(),
+        lastMessageId: lastMessageId || null
+      });
+    }
+  } catch (error) {
+    console.error("Error saving project chat summary:", error);
+  }
+};
+
+/**
+ * Gets the latest project chat summary from the database
+ */
+export const getProjectChatSummary = async (projectId: string): Promise<{ text: string | null, lastMessageId: string | null }> => {
+  try {
+    const summaryRef = collection(db, `projects/${projectId}/summaries`);
+    const q = query(summaryRef, orderBy("timestamp", "desc"), limit(1));
+    const snapshot = await getDocs(q);
+
+    if (snapshot.empty) {
+      return { text: null, lastMessageId: null };
+    }
+
+    const data = snapshot.docs[0].data();
+    return {
+      text: data.text || null,
+      lastMessageId: data.lastMessageId || null
+    };
+  } catch (error) {
+    console.error("Error fetching project chat summary:", error);
+    return { text: null, lastMessageId: null };
+  }
+};
+
+
+// Gets project chat history + summary
+export const getProjectHistory = async (projectId: string) => {
+  try {
+    const summaryData = await getProjectChatSummary(projectId);
+    const summary = summaryData.text;
+
+    const recentMessages = await fetchMessagesWithFallback('projects', projectId, summaryData.lastMessageId);
+
+    let history: Content[] = [];
+
+    if (summary) {
+      history.push({
+        role: 'user',
+        parts: [{
+          text: `[CONVERSATION SUMMARY: ${summary}]`
+        }]
+      });
+    }
+
+    for (const message of recentMessages) {
+      history.push({
+        role: message.senderUsername === 'Bonsai' ? 'model' : 'user',
+        parts: [{
+          text: (message.senderUsername !== 'Bonsai' ? (message.senderUsername + ": ") : "") + message.text,
+        }]
+      });
+    }
+
+    return history;
+  } catch (error) {
+    console.error("Error getting project history:", error);
+    return [];
+  }
+};
