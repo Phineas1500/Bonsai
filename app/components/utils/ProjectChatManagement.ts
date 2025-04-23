@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react';
-import { doc, getDoc, getDocs, collection, addDoc, query, orderBy, onSnapshot, serverTimestamp, Timestamp, limit, setDoc } from 'firebase/firestore';
+import { doc, getDoc, getDocs, collection, addDoc, query, orderBy, onSnapshot, serverTimestamp, Timestamp, limit, setDoc, where } from 'firebase/firestore';
 import { db } from '@/firebaseConfig';
 import { getUsernameFromEmail } from './userManagement';
 import { Message } from '@components/chat';
 
 import { Content } from '@google/generative-ai';
+import { fetchMessagesWithFallback } from './chatManagement';
 
 // Type for project members with both email and username
 export interface ProjectMember {
@@ -215,7 +216,7 @@ export const getProjectMessages = async (projectId: string) => {
 /**
  * Saves a project chat summary to the database
  */
-export const saveProjectChatSummary = async (projectId: string, summary: string): Promise<void> => {
+export const saveProjectChatSummary = async (projectId: string, summary: string, lastMessageId?: string): Promise<void> => {
   try {
     const summaryRef = collection(db, `projects/${projectId}/summaries`);
 
@@ -227,12 +228,14 @@ export const saveProjectChatSummary = async (projectId: string, summary: string)
       const existingDoc = existingDocs.docs[0];
       await setDoc(doc(db, `projects/${projectId}/summaries`, existingDoc.id), {
         text: summary,
-        timestamp: new Date()
+        timestamp: new Date(),
+        lastMessageId: lastMessageId || null
       });
     } else {
       await addDoc(summaryRef, {
         text: summary,
-        timestamp: new Date()
+        timestamp: new Date(),
+        lastMessageId: lastMessageId || null
       });
     }
   } catch (error) {
@@ -243,48 +246,41 @@ export const saveProjectChatSummary = async (projectId: string, summary: string)
 /**
  * Gets the latest project chat summary from the database
  */
-export const getProjectChatSummary = async (projectId: string): Promise<string | null> => {
+export const getProjectChatSummary = async (projectId: string): Promise<{ text: string | null, lastMessageId: string | null }> => {
   try {
     const summaryRef = collection(db, `projects/${projectId}/summaries`);
     const q = query(summaryRef, orderBy("timestamp", "desc"), limit(1));
     const snapshot = await getDocs(q);
 
     if (snapshot.empty) {
-      return null;
+      return { text: null, lastMessageId: null };
     }
 
-    return snapshot.docs[0].data().text;
+    const data = snapshot.docs[0].data();
+    return {
+      text: data.text || null,
+      lastMessageId: data.lastMessageId || null
+    };
   } catch (error) {
     console.error("Error fetching project chat summary:", error);
-    return null;
+    return { text: null, lastMessageId: null };
   }
 };
+
 
 // Gets project chat history + summary
 export const getProjectHistory = async (projectId: string) => {
   try {
-    const summary = await getProjectChatSummary(projectId);
+    const summaryData = await getProjectChatSummary(projectId);
+    const summary = summaryData.text;
 
-    const messagesRef = collection(db, `projects/${projectId}/messages`);
-    const q = query(messagesRef, orderBy("timestamp", "desc"), limit(10));
-    const snapshot = await getDocs(q);
-
-    const recentMessages = snapshot.docs.map(doc => {
-      const data = doc.data();
-      return {
-        id: doc.id,
-        text: data.text,
-        sender: data.sender,
-        senderUsername: data.senderUsername,
-        timestamp: data.timestamp,
-      };
-    }).reverse();
+    const recentMessages = await fetchMessagesWithFallback('projects', projectId, summaryData.lastMessageId);
 
     let history: Content[] = [];
 
     if (summary) {
       history.push({
-        role: 'model',
+        role: 'user',
         parts: [{
           text: `[CONVERSATION SUMMARY: ${summary}]`
         }]
