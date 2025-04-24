@@ -4,7 +4,7 @@ import GradientButton from '@components/GradientButton';
 import { changeUsername } from '@components/utils/userManagement';
 import { BlurView } from 'expo-blur';
 
-interface ForgotPasswordModalProps {
+interface ChangeUsernameModalProps {
   currentUsername: string;
   visible: boolean;
   onRequestClose: () => void;
@@ -14,7 +14,7 @@ export default function ChangeUsernameModal({
   currentUsername,
   visible,
   onRequestClose
-}: ForgotPasswordModalProps) {
+}: ChangeUsernameModalProps) {
   const [username, setUsername] = useState('');
   const [requestSent, setRequestSent] = useState(false);
   const [error, setError] = useState('');

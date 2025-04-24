@@ -6,7 +6,7 @@ import { Feather } from '@expo/vector-icons';
 import { router } from 'expo-router';
 
 import { ProjectData, ProjectMember } from '../utils/projectChatManagement';
-
+import CreateProjectModal from '../CreateProjectModal';
 
 interface ProjectsListProps {
   refreshTrigger?: boolean; // Can be used to trigger a refresh from parent
@@ -15,6 +15,7 @@ interface ProjectsListProps {
 const ProjectsList = ({ refreshTrigger }: ProjectsListProps) => {
   const [projects, setProjects] = useState<ProjectData[]>([]);
   const [loading, setLoading] = useState(true);
+  const [createProjectPrompt, setCreateProjectPrompt] = useState(false);
   const currentUser = auth.currentUser;
 
   // Fetch projects where the current user is a member
@@ -26,7 +27,7 @@ const ProjectsList = ({ refreshTrigger }: ProjectsListProps) => {
       // Query for projects where the user is a member
       const projectsRef = collection(db, 'projects');
       const q = query(projectsRef, where('members', 'array-contains',
-        {email: currentUser.email, username: currentUser.displayName}
+        { email: currentUser.email, username: currentUser.displayName }
       ));
       const querySnapshot = await getDocs(q);
 
@@ -62,11 +63,6 @@ const ProjectsList = ({ refreshTrigger }: ProjectsListProps) => {
     });
   };
 
-  // PLACEHOLDER @CALEB
-  const handleCreateProject = () => {
-    Alert.alert('PLACEHOLDER', 'AAAAA');
-  };
-
   if (loading) {
     return (
       <View className="flex-1 justify-center items-center py-8">
@@ -80,7 +76,7 @@ const ProjectsList = ({ refreshTrigger }: ProjectsListProps) => {
       {/* Create Project Button */}
       <TouchableOpacity
         className="flex-row items-center self-end bg-teal-700 px-3 py-1.5 rounded-lg mb-3"
-        onPress={handleCreateProject}
+        onPress={() => setCreateProjectPrompt(true)}
       >
         <Feather name="plus-circle" size={16} color="white" />
         <Text className="text-white ml-1.5 text-sm font-medium">New Project</Text>
@@ -115,6 +111,14 @@ const ProjectsList = ({ refreshTrigger }: ProjectsListProps) => {
           <Text className="text-gray-400 text-center mt-2">Create a new project to get started</Text>
         </View>
       )}
+
+      <CreateProjectModal
+        visible={createProjectPrompt}
+        onRequestClose={() => {
+          setCreateProjectPrompt(false);
+        }}
+      />
+
     </View>
   );
 };

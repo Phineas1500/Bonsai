@@ -231,7 +231,9 @@ export default function Social() {
                   allUsernames={allUsernames} // Pass allUsernames for search
                 />
               ) : (
-                <ProjectsList />
+                <ProjectsList 
+                  refreshTrigger={refreshing}
+                />
               )}
             </View>
           </ScrollView>
