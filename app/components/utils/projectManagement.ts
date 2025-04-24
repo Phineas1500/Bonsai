@@ -5,7 +5,7 @@ import { getUserByEmail } from "./userManagement";
 export interface ProjectMember {
     email: string;
     username: string;
-  }
+}
 
 export interface ProjectData {
   id: string;
@@ -40,4 +40,16 @@ export const createProject = async (email: string, projectName: string) => {
 export const deleteProject = async () => {
   // delete directly from projects collection
   // check to make sure creator is deleting
+};
+
+export const getAllProjectInvites = async (email: string) => {
+
+};
+
+export const acceptProjectInvite = async (projectId: string) => {
+
+};
+
+export const rejectProjectInvite = async (projectId: string) => {
+
 };
