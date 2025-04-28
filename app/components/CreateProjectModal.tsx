@@ -45,7 +45,7 @@ export default function CreateProjectModal({
     >
       <BlurView intensity={20} className="absolute w-full h-full">
         <View className="flex-1 mt-[35vh] items-center">
-          <View className="bg-stone-900 w-5/6 p-4 rounded-lg">
+          <View className="bg-teal-700 w-5/6 p-4 rounded-lg">
             <Text className="text-white text-2xl font-bold">Enter a Project Name:</Text>
             <View className="flex-col items-center mt-2 w-full">
               {error ? <Text className="text-red-500 mb-2">{error}</Text> : null}

@@ -35,6 +35,7 @@ import { useTasks } from '@contexts/TasksContext';
 import TaskPlanConfirmationModal from '@components/chat/TaskPlanConfirmationModal';
 
 import { getUsernameFromEmail } from '@components/utils/userManagement';
+import DeleteProjectModal from '../components/DeleteProjectModal';
 
 export default function ProjectScreen() {
   const { projectId } = useLocalSearchParams();
@@ -61,6 +62,9 @@ export default function ProjectScreen() {
 
   // Add a state for pending invite usernames
   const [pendingInviteUsernames, setPendingInviteUsernames] = useState<Record<string, string>>({});
+
+  // State for showing delete project prompt
+  const [deleteProjectPrompt, setDeleteProjectPrompt] = useState(false);
 
   // Fetch usernames for pending invites
   useEffect(() => {
@@ -322,6 +326,15 @@ export default function ProjectScreen() {
               </TouchableOpacity>
             )}
           </ScrollView>
+          {isCreator && (
+            <TouchableOpacity
+              className="mt-6 bg-black py-2 px-4 rounded-lg flex-row items-center justify-center border-2 border-solid border-red-500"
+              onPress={() => setDeleteProjectPrompt(true)}
+            >
+              <Feather name="trash" size={16} color="#FB2C36" />
+              <Text className="text-red-500 font-medium ml-2">Delete Project</Text>
+            </TouchableOpacity>
+          )}
 
           <Pressable
             className="absolute -left-10 top-2 p-2 bg-black/80 rounded-l-lg border-l border-t border-b border-teal-900/50"
@@ -408,6 +421,15 @@ export default function ProjectScreen() {
             isLoading={sendingMessage || isProcessing}
           />
         </View>
+
+        <DeleteProjectModal
+          email={userInfo?.email}
+          projectId={project?.id}
+          visible={deleteProjectPrompt}
+          onRequestClose={() => {
+            setDeleteProjectPrompt(false);
+          }}
+        />
       </View>
 
       {/* Modals for AI processing results */}
