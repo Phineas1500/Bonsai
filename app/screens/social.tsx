@@ -7,10 +7,18 @@ import { Feather } from '@expo/vector-icons';
 import { auth } from '@/firebaseConfig';
 import FriendsList from '@components/social/FriendsList';
 import ProjectsList from '@components/social/ProjectsList';
+import { acceptProjectInvite, getAllProjectInvites, rejectProjectInvite } from '../components/utils/projectManagement';
+import { ProjectData } from '../components/utils/projectChatManagement';
 
 interface FriendRequest {
   email: string;
   username: string;
+}
+
+interface ProjectRequest {
+  projectId: string,
+  projectName: string;
+  creatorUsername: string;
 }
 
 export default function Social() {
@@ -22,12 +30,14 @@ export default function Social() {
   const [refreshing, setRefreshing] = useState(false);
   const [loadingPage, setLoadingPage] = useState(false);
   const [activeTab, setActiveTab] = useState<'friends' | 'projects'>('friends');
+  const [projectRequests, setProjectRequests] = useState<ProjectRequest[]>([]);
 
   // loads all relevant data on page load
   useEffect(() => {
-    setLoadingPage(true)
+    setLoadingPage(true);
     fetchAllUsernames();
     fetchListFriends();
+    loadProjectRequests();
     loadFriendRequests();
   }, []);
 
@@ -82,6 +92,36 @@ export default function Social() {
       }
     } catch (error) {
       console.error("Error loading friend requests:", error);
+      setFriendRequests([]);
+    } finally {
+      setLoadingRequests(false);
+    }
+  };
+
+  // Load all incoming project requests the user has
+  const loadProjectRequests = async () => {
+    setLoadingRequests(true);
+    try {
+      const result = await getAllProjectInvites();
+
+      if (result && result.length > 0) {
+        // Convert project data list to ProjectRequest objects with usernames
+        const requests = await Promise.all(
+          result.map(async (project: ProjectData) => {
+            const user = await getUserByEmail(project.creatorEmail);
+            return {
+              projectId: project.id,
+              projectName: project.name,
+              creatorUsername: user?.data().username || project.creatorEmail
+            };
+          })
+        );
+        setProjectRequests(requests);
+      } else {
+        setProjectRequests([]);
+      }
+    } catch (error) {
+      console.error("Error loading projcet requests:", error);
     } finally {
       setLoadingRequests(false);
     }
@@ -91,6 +131,7 @@ export default function Social() {
   const onRefresh = () => {
     setRefreshing(true);
     loadFriendRequests();
+    loadProjectRequests();
     fetchListFriends();
   };
 
@@ -140,6 +181,44 @@ export default function Social() {
     }
   };
 
+  // Handle accepting a project request
+  const handleProjectAcceptRequest = async (projectId: string) => {
+    setProcessingRequest(projectId);
+    try {
+      const result = await acceptProjectInvite(projectId);
+      if (result) {
+        // Remove from the list
+        setProjectRequests(prev => prev.filter(req => req.projectId !== projectId));
+        Alert.alert("Success", "Project request accepted");
+      } else {
+        Alert.alert("Error", "Failed to accept project request");
+      }
+    } catch (error: any) {
+      Alert.alert("Error", error.message || "An error occurred");
+    } finally {
+      setProcessingRequest(null);
+    }
+  };
+
+  // Handle rejecting a project request
+  const handleProjectRejectRequest = async (projectId: string) => {
+    setProcessingRequest(projectId);
+    try {
+      const result = await rejectProjectInvite(projectId);
+      if (result) {
+        // Remove from the list
+        setProjectRequests(prev => prev.filter(req => req.projectId !== projectId));
+        Alert.alert("Success", "Project request rejected");
+      } else {
+        Alert.alert("Error", "Failed to reject project request");
+      }
+    } catch (error: any) {
+      Alert.alert("Error", error.message || "An error occurred");
+    } finally {
+      setProcessingRequest(null);
+    }
+  };
+
   return (
     <>
       <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
@@ -155,7 +234,7 @@ export default function Social() {
             }
           >
             {/* Friend Requests Section */}
-            {friendRequests.length > 0 && (
+            {(friendRequests.length > 0 && activeTab === 'friends') && (
               <View className="mb-6">
                 <Text className="text-white text-lg mb-2">Friend Requests</Text>
 
@@ -180,6 +259,44 @@ export default function Social() {
                           </TouchableOpacity>
                           <TouchableOpacity
                             onPress={() => handleRejectRequest(item.email)}
+                            className="bg-red-800 p-2 rounded-md"
+                          >
+                            <Feather name="x" size={18} color="white" />
+                          </TouchableOpacity>
+                        </>
+                      )}
+                    </View>
+                  </View>
+                ))}
+              </View>
+            )}
+
+            {/* Project Requests Section */}
+            {(projectRequests.length > 0 && activeTab === 'projects') && (
+              <View className="mb-6">
+                <Text className="text-white text-lg mb-2">Project Requests</Text>
+
+                {projectRequests.map((item, index) => (
+                  <View key={item.projectId} className="flex-row items-center justify-between py-3 border-b border-gray-800">
+                    <View
+                      className="flex-1"
+                    >
+                      <Text className="text-white">{item.projectName}</Text>
+                      <Text className="text-gray-400 text-xs">Invited by {item.creatorUsername}</Text>
+                    </View>
+                    <View className="flex-row">
+                      {processingRequest === item.projectId ? (
+                        <ActivityIndicator size="small" color="#14b8a6" />
+                      ) : (
+                        <>
+                          <TouchableOpacity
+                            onPress={() => handleProjectAcceptRequest(item.projectId)}
+                            className="bg-green-800 p-2 rounded-md mr-2"
+                          >
+                            <Feather name="check" size={18} color="white" />
+                          </TouchableOpacity>
+                          <TouchableOpacity
+                            onPress={() => handleProjectRejectRequest(item.projectId)}
                             className="bg-red-800 p-2 rounded-md"
                           >
                             <Feather name="x" size={18} color="white" />
@@ -231,7 +348,7 @@ export default function Social() {
                   allUsernames={allUsernames} // Pass allUsernames for search
                 />
               ) : (
-                <ProjectsList 
+                <ProjectsList
                   refreshTrigger={refreshing}
                 />
               )}
