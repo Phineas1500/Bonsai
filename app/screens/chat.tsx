@@ -23,6 +23,7 @@ export default function Chat() {
   const welcomeOpacity = useRef(new Animated.Value(1)).current;
   const [dailyStreakCheckIn, setDailyStreakCheckIn] = useState(false);
   const { tasks, refreshTasks } = useTasks();
+  const [uploadedContent, setUploadedContent] = useState<{text: string, filename: string} | null>(null);
 
   // Create a message factory function for the AI hook
   const createMessage = (text: string, sender: string): Message => {
@@ -38,8 +39,6 @@ export default function Chat() {
   // Use our new AI chat hook
   const {
     isProcessing,
-    uploadedContent,
-    setUploadedContent,
     taskPlanData,
     pendingEvents,
     currentEventIndex,
@@ -176,8 +175,18 @@ export default function Chat() {
 
   // Combine our custom handle send with streak check
   const handleSendWithStreak = async () => {
-    setMessage('');
-    const success = await handleSend(message);
+    let textToSend = message;
+    let filename: string | undefined = undefined;
+
+    // Include uploaded content if present
+    if (uploadedContent) {
+      textToSend = `${uploadedContent.text}\n\n(From file: ${uploadedContent.filename})\n\n${message}`;
+      filename = uploadedContent.filename; // Keep filename for potential future use
+      setUploadedContent(null); // Clear uploaded content after preparing message
+    }
+
+    setMessage(''); // Clear input field immediately
+    const success = await handleSend(textToSend); // Send combined text
     if (success) {
       handleDailyChatbotCheckIn();
     }
@@ -220,13 +229,14 @@ export default function Chat() {
             onChangeText={setMessage}
             onSend={handleSendWithStreak}
             onPdfSelected={(text, filename) => setUploadedContent({ text, filename })}
-            disabled={isLoading || isProcessing || !message.trim()}
+            disabled={isLoading || isProcessing || (!message.trim() && !uploadedContent)} // Disable if no text AND no upload
             onFocus={() => {
               fadeOutWelcome();
               scrollToBottom();
             }}
             uploadedContent={uploadedContent}
             clearUploadedContent={() => setUploadedContent(null)}
+            isLoading={isLoading || isProcessing} // Pass loading state
           />
         </View>
       </View>
@@ -240,6 +250,8 @@ export default function Chat() {
           eventCount={pendingEvents.length}
           currentEventIndex={currentEventIndex}
           isTaskPlanEvent={pendingEvents[currentEventIndex]?.isTaskPlanEvent || false}
+          isProjectChat={false} // Pass false for personal chat
+          currentUserIdentifier={userInfo?.username || userInfo?.email || null} // Pass current user identifier
         />
       )}
 

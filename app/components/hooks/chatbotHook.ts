@@ -1,9 +1,12 @@
-import { useState, useCallback } from 'react';
-import { format, parseISO } from 'date-fns';
-import { useUser } from '@/app/contexts/UserContext';
-import { analyzeWithAI, formatScheduleForContext, ChatTask, ChatAnalysisResponse } from '@/app/components/utils/chatProcessor';
+import { useState, useCallback, useEffect } from 'react';
+import { Alert } from 'react-native';
 import axios from 'axios';
 import { Timestamp } from 'firebase/firestore';
+
+import { useUser } from '@contexts/UserContext';
+import AIService from '@contexts/AIService';
+import { TaskItemData } from '@contexts/TasksContext'; // Import TaskItemData instead of Task
+import { getProjectById } from '../utils/projectManagement'; // Import the new function
 
 interface MessageBase {
   id: string;
@@ -18,10 +21,11 @@ interface chatbotProps<msg extends MessageBase> {
   messages: msg[];
   setMessages: React.Dispatch<React.SetStateAction<msg[]>>;
   sendMessage: (chatId: string, message: msg) => Promise<void>;
-  tasks: ChatTask[];
+  tasks: TaskItemData[]; // Use TaskItemData
   refreshTasks: () => Promise<void>;
   isProjectChat?: boolean;
   createMessage: (text: string, sender: string) => msg;
+  projectId?: string; // Add optional projectId
 }
 
 export function chatbot<msg extends MessageBase>({
@@ -29,57 +33,39 @@ export function chatbot<msg extends MessageBase>({
   messages,
   setMessages,
   sendMessage,
-  tasks,
+  tasks, // This is now TaskItemData[]
   refreshTasks,
   isProjectChat = false,
-  createMessage
+  createMessage,
+  projectId // Destructure projectId
 }: chatbotProps<msg>) {
   const { userInfo } = useUser();
   const [isProcessing, setIsProcessing] = useState(false);
-  const [uploadedContent, setUploadedContent] = useState<{text: string, filename: string} | null>(null);
-  const [taskPlanData, setTaskPlanData] = useState<any>(null);
   const [pendingEvents, setPendingEvents] = useState<any[]>([]);
   const [currentEventIndex, setCurrentEventIndex] = useState(0);
   const [showEventConfirmation, setShowEventConfirmation] = useState(false);
+  const [taskPlanData, setTaskPlanData] = useState<any>(null);
   const [showTaskPlanConfirmation, setShowTaskPlanConfirmation] = useState(false);
-  const [isTaskPlanning, setIsTaskPlanning] = useState(false);
-  const [taskPlanContext, setTaskPlanContext] = useState<string>('');
 
-  // Process user message with AI
-  const processMessage = useCallback(async (messageText: string) => {
-    if (!chatId) return null;
-
-    setIsProcessing(true);
-
+  // Ensure correct timezone formatting for Google Calendar API
+  const ensureCorrectTimezone = (dateTimeString: string): string => {
     try {
-      // If message has uploaded content
-      if (uploadedContent) {
-        const contentToAnalyze = messageText.trim()
-          ? `Here's my question about this file: ${messageText}\n\nFile content: ${uploadedContent.text}`
-          : `Extract any task planning information, calendars, schedules or events from this: ${uploadedContent.text}`;
-
-        return await analyzeWithAI(contentToAnalyze, formatScheduleForContext(tasks), isProjectChat, chatId);
+      const date = new Date(dateTimeString);
+      // Check if the date is valid
+      if (isNaN(date.getTime())) {
+        throw new Error("Invalid date string");
       }
-
-      // If we're in task planning mode, add context
-      if (isTaskPlanning && taskPlanContext) {
-        messageText = `[Task Planning Context: ${taskPlanContext}] User response: ${messageText}`;
-      }
-
-      return await analyzeWithAI(messageText, formatScheduleForContext(tasks), isProjectChat, chatId);
+      // Format to ISO string which includes timezone offset
+      return date.toISOString();
     } catch (error) {
-      console.error("Error processing message:", error);
-      return {
-        isCalendarEvent: false,
-        response: "Sorry, I encountered an error processing your request."
-      };
-    } finally {
-      setIsProcessing(false);
+      console.error("Error parsing date string:", dateTimeString, error);
+      // Fallback to current time if parsing fails
+      return new Date().toISOString();
     }
-  }, [chatId, uploadedContent, isTaskPlanning, taskPlanContext, tasks, isProjectChat]);
+  };
 
-  // Add event to calendar (only for personal chat)
-  const addToCalendar = useCallback(async (eventDetails: any) => {
+  // Add event to calendar (now accepts calendarId)
+  const addToCalendar = useCallback(async (eventDetails: any, calendarId: string = 'primary') => {
     try {
       if (!userInfo?.calendarAuth?.access_token) {
         return "I need access to your Google Calendar to add events. Please sign in with Google first.";
@@ -87,7 +73,7 @@ export function chatbot<msg extends MessageBase>({
 
       // Create calendar event
       const event = {
-        summary: eventDetails.title,
+        summary: eventDetails.title, // Use title directly, summary modification happens in handleConfirmEvent
         description: eventDetails.description || "",
         location: eventDetails.location || "",
         start: {
@@ -101,13 +87,15 @@ export function chatbot<msg extends MessageBase>({
         extendedProperties: {
           private: {
             isTaskPlanEvent: eventDetails.isTaskPlanEvent ? 'true' : 'false',
-            priority: eventDetails.priority?.toString() || "5"
+            // Add assignedTo if available, useful for display in calendar details
+            ...(eventDetails.assignedTo && { assignedTo: eventDetails.assignedTo })
           }
         }
       };
 
+      // Use the provided calendarId in the API endpoint
       const response = await axios.post(
-        'https://www.googleapis.com/calendar/v3/calendars/primary/events',
+        `https://www.googleapis.com/calendar/v3/calendars/${calendarId}/events`,
         event,
         {
           headers: {
@@ -117,232 +105,377 @@ export function chatbot<msg extends MessageBase>({
         }
       );
 
-      if (response.status === 200 || response.status === 201) {
-        const eventDate = format(parseISO(eventDetails.startTime), 'MMMM do, yyyy');
-        const eventTime = format(parseISO(eventDetails.startTime), 'h:mm a');
-
-        return `I've added "${eventDetails.title}" to your calendar on ${eventDate} at ${eventTime}.`;
+      if (response.status === 200) {
+        return `I've added "${eventDetails.title}" to your calendar.`;
       } else {
-        return "I had trouble adding that to your calendar. Please try again.";
+        return `I couldn't add the event. Status: ${response.status}`;
       }
-    } catch (error) {
-      console.error("Error adding event to calendar:", error);
-      return "I couldn't add that to your calendar. There might be an issue with your calendar access.";
+    } catch (error: any) {
+      console.error('Error adding event to calendar:', error.response?.data || error.message);
+      if (error.response?.status === 401) {
+        return "Your Google Calendar access might have expired. Please try signing in with Google again via settings.";
+      }
+      return `I couldn't add the event due to an error: ${error.message}`;
     } finally {
-      // Refresh tasks to get updated calendar data
-      refreshTasks();
+      // Refresh tasks to get updated calendar data - moved to handleConfirmEvent/handleCancelEvent
+      // refreshTasks(); // Removed from here
     }
-  }, [userInfo, refreshTasks]);
+  }, [userInfo]); // Removed refreshTasks dependency
 
-  // Helper for ensuring timezone
-  const ensureCorrectTimezone = (isoString: string): string => {
-    // If the time string already has timezone info, we're good
-    if (isoString.includes('+') || isoString.includes('Z')) {
-      return isoString;
+  // Handle sending message and processing AI response
+  const handleSend = useCallback(async (text: string) => {
+    if (!chatId) {
+      Alert.alert("Error", "Chat ID is missing.");
+      return false;
     }
 
-    // Otherwise, interpret as local time and add timezone info
-    const date = new Date(isoString);
-    return date.toISOString();
-  };
+    setIsProcessing(true);
+    const userMessage = createMessage(text, userInfo?.email || 'user');
 
-  // Handle sending a message
-  const handleSend = useCallback(async (messageText: string) => {
-    if ((!messageText.trim() && !uploadedContent) || !chatId) return false;
-
-    // Create and send user message
-    const userMessageText = messageText.trim() ||
-      (uploadedContent ? `📄 Uploaded: ${uploadedContent.filename}` : '');
-
-    const userMessage = createMessage(userMessageText, userInfo?.email || '');
-
-    setUploadedContent(null);
     try {
+      // Send user message immediately
       await sendMessage(chatId, userMessage);
       setMessages(prev => [...prev, userMessage]);
 
-      // Process with AI
-      const aiResponse = await processMessage(messageText);
+      // Get AI response
+      const aiService = AIService.getInstance();
+      const sessionId = isProjectChat ? `project_${chatId}` : `chat_${chatId}`;
 
-      if (!aiResponse) return false;
-
-      // Handle different response types
-      if (aiResponse.isTaskPlanning) {
-        await handleTaskPlanningResponse(aiResponse);
-      } else if (aiResponse.isCalendarEvent && aiResponse.events && aiResponse.events.length > 0) {
-        setPendingEvents(aiResponse.events);
-        setCurrentEventIndex(0);
-        setShowEventConfirmation(true);
-      } else {
-        // Regular response
-        const botMessage = createMessage(
-          aiResponse.response || "I don't know how to respond to that.",
-          'bot'
-        );
-
-        await sendMessage(chatId, botMessage);
-        setMessages(prev => [...prev, botMessage]);
+      // Ensure chat session is initialized
+      if (!aiService.isSessionActive(sessionId)) {
+        // --- MODIFIED SYSTEM PROMPT ---
+        const systemMessage = `You are Bonsai, an AI assistant integrated into a task management and social app. Today's date is ${new Date().toLocaleDateString()}. Current user: ${userInfo?.username || 'Unknown'}. User's email: ${userInfo?.email || 'Unknown'}.
+        ${isProjectChat ? 'You are in a PROJECT CHAT. Focus on project-related tasks, scheduling, and collaboration. When creating tasks or events, consider assigning them to project members if specified.' : 'You are in a PERSONAL CHAT. Focus on the user\'s individual tasks and schedule.'}
+        Available functions:
+        - Analyze text for potential calendar events or tasks.
+        - If one or more events/tasks are found (e.g., "schedule meeting", "remind me to X"), respond ONLY with a valid JSON object containing an array named "events". DO NOT include any other text before or after the JSON.
+        - Each object in the "events" array must have: "title" (string), "startTime" (ISO 8601 string), "endTime" (ISO 8601 string), "description" (string, optional), "location" (string, optional), "assignedTo" (string username/email or null, optional).
+        - If the user asks to take a task or assign a task to themselves (e.g., "I'll do X", "Assign Y to me"), find the details of that task from the conversation history or provided context. Respond ONLY with a valid JSON object containing an array named "events" with a single event object representing that task, setting the "assignedTo" field to the current user's identifier (${userInfo?.username || userInfo?.email || 'Unknown'}).
+        - For tasks without specific times, use "startTime" and "endTime" to indicate the deadline day (e.g., start of day to end of day).
+        - If a task plan is requested (e.g., "create a plan for X"), respond ONLY with a valid JSON object containing "taskPlan" which is an array of task objects (like in "events"). DO NOT include any other text before or after the JSON.
+        - If NO events, tasks, or task plans are detected, provide a helpful text response. Start these text-only responses with "[AI_RESPONSE]".
+        - Use the user's current tasks for context: ${JSON.stringify(tasks)}
+        - Be concise. Adhere strictly to the JSON-only or [AI_RESPONSE] text format.`;
+        // --- END MODIFIED SYSTEM PROMPT ---
+        await aiService.startChat(sessionId, systemMessage);
       }
 
-      return true;
-    } catch (error) {
-      console.error("Error sending message:", error);
-      return false;
+      const aiResponseText = await aiService.sendMessage(sessionId, text);
+      console.log("Raw AI response received:", aiResponseText);
+
+      // --- UPDATED processAIResponseInline ---
+      const processAIResponseInline = (responseText: string | null) => {
+        if (!responseText) {
+          return { textResponse: null, events: null, taskPlan: null };
+        }
+
+        let jsonString = responseText.trim();
+
+        // 1. Check for JSON within Markdown code fences (```json ... ``` or ``` ... ```)
+        const codeBlockMatch = jsonString.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
+        if (codeBlockMatch && codeBlockMatch[1]) {
+          jsonString = codeBlockMatch[1].trim();
+          console.log("Extracted JSON from code block:", jsonString);
+        } else {
+          // 2. If no code block, remove potential legacy tags (optional, but safe)
+          jsonString = jsonString.replace(/^\s*\[AI_RESPONSE\]\s*/, '');
+          console.log("No code block found, using raw/cleaned string:", jsonString);
+        }
+
+        // 3. Attempt to parse the extracted/cleaned string
+        try {
+          // Attempt parsing FIRST
+          const parsed = JSON.parse(jsonString);
+
+          // Check the structure of the parsed result
+          if (typeof parsed === 'object' && parsed !== null) {
+            // A) Standard { events: [...] } format
+            if (parsed.events && Array.isArray(parsed.events)) {
+              console.log("Parsed as standard events object.");
+              return { textResponse: null, events: parsed.events, taskPlan: null };
+            }
+            // B) Standard { taskPlan: [...] } format
+            if (parsed.taskPlan && Array.isArray(parsed.taskPlan)) {
+              console.log("Parsed as standard taskPlan object.");
+              return { textResponse: null, events: null, taskPlan: parsed.taskPlan };
+            }
+          }
+
+          // C) Direct array format [...] - assume it's events
+          if (Array.isArray(parsed)) {
+            console.log("Parsed as direct array of events.");
+            return { textResponse: null, events: parsed, taskPlan: null };
+          }
+
+          // D) If it parsed but didn't match known structures
+          console.warn("Parsed JSON but didn't match expected events/taskPlan/array structure:", parsed);
+          return { textResponse: "I received a structured response, but couldn't understand its format.", events: null, taskPlan: null };
+
+        } catch (e) {
+          // JSON parsing failed OR jsonString was empty/null initially
+          if (jsonString) { // Only log error if we actually tried to parse something
+            console.error("Failed to parse potential JSON:", jsonString, e);
+          }
+          // Fallback to plain text if parsing fails
+          console.log("Treating as plain text response:", responseText);
+          const cleanedText = (responseText || '').replace(/^\s*\[AI_RESPONSE\]\s*/, '').replace(/```(?:json)?\s*([\s\S]*?)\s*```/, '$1').trim();
+          // Return cleaned text only if it's not empty, otherwise signal no action
+          if (cleanedText) {
+            return { textResponse: cleanedText, events: null, taskPlan: null };
+          } else {
+            // If original response was empty or only whitespace/code fences
+            return { textResponse: null, events: null, taskPlan: null }; // Indicate no actionable response
+          }
+        }
+      };
+      // --- END UPDATED processAIResponseInline ---
+
+      const { textResponse, events, taskPlan } = processAIResponseInline(aiResponseText);
+      console.log("Processed AI response:", { textResponse, events, taskPlan });
+
+      if (events && events.length > 0) {
+        setPendingEvents(events);
+        setCurrentEventIndex(0);
+        setShowEventConfirmation(true);
+        // Don't send a text message if only events are found
+      } else if (taskPlan && taskPlan.length > 0) {
+        setTaskPlanData(taskPlan);
+        setShowTaskPlanConfirmation(true);
+        // Don't send a text message if only a task plan is found
+      } else if (textResponse) {
+        const botMessage = createMessage(textResponse, 'bot');
+        await sendMessage(chatId, botMessage);
+        setMessages(prev => [...prev, botMessage]);
+      } else {
+        // Handle cases where AI gives no actionable response or empty response
+        const fallbackMessage = createMessage("I received your message, but I couldn't determine a specific action.", 'bot');
+        await sendMessage(chatId, fallbackMessage);
+        setMessages(prev => [...prev, fallbackMessage]);
+      }
+      return true; // Indicate success
+    } catch (error: any) {
+      console.error("Error in handleSend:", error);
+      const errorMessage = createMessage(`Sorry, I encountered an error: ${error.message}`, 'bot');
+      try {
+        await sendMessage(chatId, errorMessage);
+        setMessages(prev => [...prev, errorMessage]);
+      } catch (sendError) {
+        console.error("Error sending error message:", sendError);
+      }
+      return false; // Indicate failure
+    } finally {
+      setIsProcessing(false);
     }
-  }, [chatId, uploadedContent, userInfo, sendMessage, setMessages, processMessage, createMessage]);
-
-  // Handle task planning response
-  const handleTaskPlanningResponse = useCallback(async (aiResponse: ChatAnalysisResponse) => {
-    if (!chatId) return;
-
-    if (aiResponse.needsMoreInfo) {
-      // Need more information - ask follow-up question
-      setIsTaskPlanning(true);
-      setTaskPlanContext(aiResponse.followUpQuestion || '');
-
-      const botMessage = createMessage(
-        aiResponse.followUpQuestion || "Can you provide more details about your task?",
-        'bot'
-      );
-
-      await sendMessage(chatId, botMessage);
-      setMessages(prev => [...prev, botMessage]);
-    } else {
-      // Got all information needed for task planning
-      setIsTaskPlanning(false);
-      setTaskPlanContext('');
-      setTaskPlanData(aiResponse.taskPlan);
-
-      // Create a summary of the task plan
-      let summaryText = `I've created a plan for "${aiResponse.taskPlan?.title}":\n\n`;
-
-      aiResponse.taskPlan?.subtasks.forEach((subtask, index) => {
-        const startDate = format(parseISO(subtask.startTime), 'MMM d, h:mm a');
-        summaryText += `${index + 1}. ${subtask.title} (${startDate})\n`;
-      });
-
-      summaryText += "\nWould you like me to add these items to your calendar?";
-
-      const botMessage = createMessage(summaryText, 'bot');
-
-      await sendMessage(chatId, botMessage);
-      setMessages(prev => [...prev, botMessage]);
-
-      // Show the task plan confirmation modal
-      setShowTaskPlanConfirmation(true);
-    }
-  }, [chatId, sendMessage, setMessages, createMessage]);
-
-  // Handle task plan confirmation
-  const handleConfirmTaskPlan = useCallback(() => {
-    if (!taskPlanData) return;
-
-    // Convert task plan to pending events format
-    setPendingEvents(taskPlanData.subtasks.map((subtask: any) => ({
-      title: subtask.title,
-      description: `${subtask.description}\n\nPart of task plan: ${taskPlanData.title}`,
-      startTime: subtask.startTime,
-      endTime: subtask.endTime,
-      location: "",
-      priority: subtask.priority,
-      isTaskPlanEvent: true
-    })));
-
-    setCurrentEventIndex(0);
-    setShowEventConfirmation(true);
-    setShowTaskPlanConfirmation(false);
-  }, [taskPlanData]);
-
-  // Handle task plan cancellation
-  const handleCancelTaskPlan = useCallback(async () => {
-    if (!chatId) return;
-
-    setTaskPlanData(null);
-    setShowTaskPlanConfirmation(false);
-
-    // Add response about cancellation
-    const botMessage = createMessage(
-      "I've cancelled adding the task plan to your calendar.",
-      'bot'
-    );
-
-    try {
-      await sendMessage(chatId, botMessage);
-      setMessages(prev => [...prev, botMessage]);
-    } catch (error) {
-      console.error("Error sending message:", error);
-    }
-  }, [chatId, sendMessage, setMessages, createMessage]);
+  }, [chatId, userInfo, tasks, sendMessage, setMessages, createMessage, isProjectChat, refreshTasks]);
 
   // Handle event confirmation
   const handleConfirmEvent = useCallback(async () => {
     if (!chatId || pendingEvents.length === 0 || currentEventIndex >= pendingEvents.length) return;
 
     setIsProcessing(true);
-    const currentEvent = pendingEvents[currentEventIndex];
+    const currentEvent = { ...pendingEvents[currentEventIndex] }; // Clone event to modify
+    const assignedUser = currentEvent.assignedTo; // This could be username or email
+    const currentUserIdentifier = userInfo?.username || userInfo?.email; // Use username first, fallback to email
 
-    // For non-project chats, try to add to calendar
-    let responseText = isProjectChat
-      ? `Added "${currentEvent.title}" to the project calendar.`
-      : await addToCalendar(currentEvent);
+    let responseText = '';
+    let projectData = null;
+    let sharedCalendarId: string | undefined | null = null;
 
-    // Add bot response about this event being added
+    // Fetch project data if in project chat and projectId is available
+    if (isProjectChat && projectId) {
+      projectData = await getProjectById(projectId);
+      sharedCalendarId = projectData?.sharedCalendarId;
+      console.log(`Project Chat: Fetched project ${projectId}, Shared Calendar ID: ${sharedCalendarId}`);
+    }
+
+    // Determine if the event is assigned to the *current* logged-in user
+    const isAssignedToCurrentUser = assignedUser && currentUserIdentifier &&
+                                    (assignedUser.toLowerCase() === currentUserIdentifier.toLowerCase() ||
+                                     (userInfo?.email && assignedUser.toLowerCase() === userInfo.email.toLowerCase()));
+
+    console.log(`Event: "${currentEvent.title}", AssignedTo: ${assignedUser}, CurrentUser: ${currentUserIdentifier}, IsAssignedToCurrentUser: ${isAssignedToCurrentUser}`);
+
+    if (isAssignedToCurrentUser) {
+      // --- Assigned to current user ---
+      if (isProjectChat && sharedCalendarId) {
+        // Project chat with a shared calendar: Add to shared calendar
+        console.log(`Adding event for current user to SHARED calendar: ${sharedCalendarId}`);
+        // Modify summary to show assignment clearly in the shared calendar
+        currentEvent.summary = `${currentEvent.title} (Assigned: ${userInfo?.username || assignedUser})`;
+        responseText = await addToCalendar(currentEvent, sharedCalendarId);
+        // Adjust confirmation message for project calendar
+        if (responseText.startsWith("I've added")) {
+           responseText = `Task "${currentEvent.title}" assigned to you. ${responseText.replace("your calendar", `the project calendar (${projectData?.name})`)}`;
+        } else {
+           // Provide specific feedback if adding to shared calendar failed
+           responseText = `Task "${currentEvent.title}" assigned to you. (Could not add to project calendar: ${responseText})`;
+        }
+      } else {
+        // Personal chat OR project chat without shared calendar: Add to primary
+        console.log(`Adding event for current user to PRIMARY calendar`);
+        responseText = await addToCalendar(currentEvent); // Uses 'primary' by default
+        // Adjust confirmation message based on success/failure and context
+        if (responseText.startsWith("I couldn't add") || responseText.startsWith("I need access")) {
+           responseText = `Confirmed: "${currentEvent.title}" assigned to you. (Could not add to your primary calendar: ${responseText})`;
+        } else if (isProjectChat) {
+           // Success in project chat (added to primary)
+           responseText = `Task "${currentEvent.title}" assigned to you. ${responseText.replace("your calendar", "your primary calendar")}`;
+        } else {
+           // Success in personal chat (added to primary) - keep original message like "I've added... to your calendar"
+           // responseText remains unchanged
+        }
+      }
+    } else if (assignedUser) {
+      // --- Assigned to someone else ---
+      responseText = `Task "${currentEvent.title}" assigned to ${assignedUser}.`;
+      // If project chat and shared calendar exists, add it anyway but mention assignment
+      if (isProjectChat && sharedCalendarId) {
+         console.log(`Adding event assigned to OTHER user (${assignedUser}) to SHARED calendar: ${sharedCalendarId}`);
+         currentEvent.summary = `${currentEvent.title} (Assigned: ${assignedUser})`;
+         // Add to shared calendar without specific confirmation *for the assignee* in this message
+         const sharedCalResponse = await addToCalendar(currentEvent, sharedCalendarId);
+         if (sharedCalResponse.startsWith("I've added")) {
+            responseText += ` Added to project calendar (${projectData?.name}).`;
+         } else {
+            responseText += ` (Could not add to project calendar: ${sharedCalResponse})`;
+         }
+      } else {
+         console.log(`Event assigned to OTHER user (${assignedUser}), no shared calendar or not project chat. Not adding to any calendar.`);
+      }
+      // Do not attempt to add to the other user's primary calendar
+    } else {
+      // --- Not assigned to anyone specific ---
+      if (isProjectChat && sharedCalendarId) {
+         // Project chat with shared calendar - add unassigned task
+         console.log(`Adding UNASSIGNED event to SHARED calendar: ${sharedCalendarId}`);
+         responseText = await addToCalendar(currentEvent, sharedCalendarId);
+         if (responseText.startsWith("I've added")) {
+            responseText = `Added unassigned task "${currentEvent.title}" to the project calendar (${projectData?.name}).`;
+         } else {
+            responseText = `Added unassigned task "${currentEvent.title}" to the project plan. (Could not add to project calendar: ${responseText})`;
+         }
+      } else if (!isProjectChat) {
+         // Personal chat - add unassigned task to primary
+         console.log(`Adding UNASSIGNED event to PRIMARY calendar`);
+         responseText = await addToCalendar(currentEvent);
+         // Keep original confirmation message
+      } else {
+         // Project chat without shared calendar - just confirm it's noted
+         console.log(`UNASSIGNED event in project chat without shared calendar. Not adding to any calendar.`);
+         responseText = `Added unassigned task "${currentEvent.title}" to the project plan/schedule.`;
+      }
+    }
+
+    // Add bot response message
     const botMessage = createMessage(responseText, 'bot');
 
     try {
       await sendMessage(chatId, botMessage);
       setMessages(prev => [...prev, botMessage]);
     } catch (error) {
-      console.error("Error sending message:", error);
+      console.error("Error sending confirmation/assignment message:", error);
     }
 
     // Move to next event or finish
     if (currentEventIndex < pendingEvents.length - 1) {
       setCurrentEventIndex(currentEventIndex + 1);
+      // Keep confirmation modal open for the next event
+      setIsProcessing(false); // Allow interaction for the next confirmation
     } else {
       // All events processed
       setShowEventConfirmation(false);
       setPendingEvents([]);
       setCurrentEventIndex(0);
+      // Refresh tasks *after* all events are processed
+      console.log("All events processed, refreshing tasks...");
+      refreshTasks();
+      setIsProcessing(false); // Final processing finished
     }
 
-    setIsProcessing(false);
-  }, [chatId, pendingEvents, currentEventIndex, isProjectChat, addToCalendar, sendMessage, setMessages, createMessage]);
+  }, [chatId, projectId, isProjectChat, pendingEvents, currentEventIndex, userInfo, addToCalendar, sendMessage, setMessages, createMessage, refreshTasks]);
+
 
   // Handle event cancellation
   const handleCancelEvent = useCallback(async () => {
     if (!chatId || pendingEvents.length === 0 || currentEventIndex >= pendingEvents.length) return;
 
-    // Add bot response about cancellation of the current event
-    const currentEvent = pendingEvents[currentEventIndex];
-    const botMessage = createMessage(
-      `I've cancelled adding "${currentEvent.title}" to your calendar.`,
-      'bot'
-    );
+    const cancelledEvent = pendingEvents[currentEventIndex];
+    const responseText = `Okay, I won't add "${cancelledEvent.title}" to the calendar.`;
+    const botMessage = createMessage(responseText, 'bot');
 
     try {
       await sendMessage(chatId, botMessage);
       setMessages(prev => [...prev, botMessage]);
     } catch (error) {
-      console.error("Error sending message:", error);
+      console.error("Error sending cancellation message:", error);
     }
 
     // Move to next event or finish
     if (currentEventIndex < pendingEvents.length - 1) {
       setCurrentEventIndex(currentEventIndex + 1);
+      // Keep modal open for next event
     } else {
-      // All events processed or cancelled
+      // All events processed (or cancelled)
       setShowEventConfirmation(false);
       setPendingEvents([]);
       setCurrentEventIndex(0);
+      // No need to refresh tasks if all were cancelled
     }
   }, [chatId, pendingEvents, currentEventIndex, sendMessage, setMessages, createMessage]);
 
+  // Handle task plan confirmation
+  const handleConfirmTaskPlan = useCallback(async () => {
+    if (!chatId || !taskPlanData) return;
+
+    setIsProcessing(true);
+    setShowTaskPlanConfirmation(false); // Close confirmation modal
+
+    // Convert task plan items to event-like objects for potential calendar adding
+    const eventsFromPlan = taskPlanData.map((task: any) => ({
+      ...task,
+      isTaskPlanEvent: true // Mark these as originating from a task plan
+    }));
+
+    // Set these as pending events to go through the confirmation flow
+    setPendingEvents(eventsFromPlan);
+    setCurrentEventIndex(0);
+    setShowEventConfirmation(true); // Show event confirmation for the first task in the plan
+
+    // Send a message indicating the plan is being processed
+    const planMessage = createMessage("Okay, let's confirm the tasks from the plan.", 'bot');
+    try {
+      await sendMessage(chatId, planMessage);
+      setMessages(prev => [...prev, planMessage]);
+    } catch (error) {
+      console.error("Error sending task plan processing message:", error);
+    }
+
+    // No need to set isProcessing false here, as handleConfirmEvent will manage it
+    // setTaskPlanData(null); // Clear task plan data now handled by pendingEvents
+  }, [chatId, taskPlanData, sendMessage, setMessages, createMessage]);
+
+  // Handle task plan cancellation
+  const handleCancelTaskPlan = useCallback(async () => {
+    if (!chatId) return;
+
+    const responseText = "Okay, I've cancelled the task plan.";
+    const botMessage = createMessage(responseText, 'bot');
+
+    try {
+      await sendMessage(chatId, botMessage);
+      setMessages(prev => [...prev, botMessage]);
+    } catch (error) {
+      console.error("Error sending task plan cancellation message:", error);
+    }
+
+    setShowTaskPlanConfirmation(false);
+    setTaskPlanData(null);
+  }, [chatId, sendMessage, setMessages, createMessage]);
+
+
   return {
     isProcessing,
-    uploadedContent,
-    setUploadedContent,
-    taskPlanData,
+    taskPlanData, // Keep this to pass to the modal
     pendingEvents,
     currentEventIndex,
     showEventConfirmation,

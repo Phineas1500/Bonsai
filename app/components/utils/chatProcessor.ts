@@ -31,6 +31,7 @@ export interface ChatAnalysisResponse {
       startTime: string;
       endTime: string;
       priority: number;
+      assignedTo?: string; // Added: Username or email of the assigned user
     }>;
   };
   events?: Array<{
@@ -42,6 +43,7 @@ export interface ChatAnalysisResponse {
     allowReschedule: boolean;
     isTaskPlanEvent?: boolean;
     priority?: number;
+    assignedTo?: string; // Added: Username or email of the assigned user
   }>;
   timePeriod?: string;
   response?: string;
@@ -55,7 +57,9 @@ export const analyzeWithAI = async (
 ): Promise<ChatAnalysisResponse> => {
   try {
     // Build the system message with the additional context about whether this is a project chat
-    const contextPrefix = isProjectChat ? "This is a PROJECT CHAT with multiple users. Focus on collaboration, team coordination, and project management rather than personal tasks." : "";
+    const contextPrefix = isProjectChat
+      ? "This is a PROJECT CHAT with multiple users. Focus on collaboration, team coordination, and project management. When creating tasks or events, you MUST determine the most appropriate user from the conversation context and assign it to them using the 'assignedTo' field (use their username if known, otherwise email). If no specific user is appropriate or mentioned, you can omit the 'assignedTo' field."
+      : "";
 
     const sys_message = `${contextPrefix}
             You are a helpful assistant that can add events to a calendar and answer general questions.
@@ -79,7 +83,7 @@ export const analyzeWithAI = async (
 
             TASK PLANNING:
             If the user wants to plan out a task (with phrases like "help me plan", "break down this project", "create a schedule for", "organize my task"), respond with JSON in this format:
-            {"isTaskPlanning": true, "needsMoreInfo": boolean, "followUpQuestion": "question if more info needed", "taskPlan": {"title": "Main task title", "description": "Overall description", "subtasks": [{"title": "Subtask 1", "description": "Details", "startTime": "ISO", "endTime": "ISO", "priority": 1-10}, ...]}}
+            {"isTaskPlanning": true, "needsMoreInfo": boolean, "followUpQuestion": "question if more info needed", "taskPlan": {"title": "Main task title", "description": "Overall description", "subtasks": [{"title": "Subtask 1", "description": "Details", "startTime": "ISO", "endTime": "ISO", "priority": 1-10, "assignedTo": "username_or_email"}, ...]}} // Added assignedTo
 
             Only set needsMoreInfo to true if you don't have essential information like:
             - What the overall task/project is
@@ -88,7 +92,7 @@ export const analyzeWithAI = async (
 
             For calendar requests:
             If a user is asking to add one or more events to their calendar, extract the details for each event in the user's local time zone (${Intl.DateTimeFormat().resolvedOptions().timeZone}) and respond with JSON in this format:
-            {"isCalendarEvent": true, "events": [{"title": "Event title", "description": "Event description", "location": "Event location", "startTime": "ISO string with timezone offset", "endTime": "ISO string with timezone offset", "allowReschedule": boolean}, {...more events if mentioned...}]}
+            {"isCalendarEvent": true, "events": [{"title": "Event title", "description": "Event description", "location": "Event location", "startTime": "ISO string with timezone offset", "endTime": "ISO string with timezone offset", "allowReschedule": boolean, "assignedTo": "username_or_email"}, {...more events if mentioned...}]} // Added assignedTo
 
             Set "allowReschedule" to true if the user is flexible with the timing (phrases like "whenever I'm free", "find a time", "when available") and false if they specifically request an exact time.
 
@@ -130,30 +134,123 @@ export const analyzeWithAI = async (
 
     let aiResponse = await aiService.sendMessage(sessionId, userMessage);
 
+    // Log the raw response immediately after receiving it
+    console.log("Raw AI response received:", aiResponse);
+
     try {
-      // Remove AI_RESPONSE tags if present
-      aiResponse = aiResponse.replace(/\[AI_RESPONSE\]/g, '').trim();
+      let jsonString = aiResponse;
 
-      // Remove markdown code formatting (```json and ```)
-      aiResponse = aiResponse.replace(/```json\s*/g, '').replace(/```\s*$/g, '').trim();
+      // 1. Attempt to extract content from the first code block (any language)
+      const codeBlockMatch = jsonString.match(/```(?:\w+)?\s*([\s\S]*?)\s*```/);
+      if (codeBlockMatch && codeBlockMatch[1]) {
+        jsonString = codeBlockMatch[1].trim();
+        console.log("Extracted from code block:", jsonString);
+      } else {
+        // 2. If no code block, remove [AI_RESPONSE] tags if present (legacy)
+        jsonString = jsonString.replace(/\[AI_RESPONSE\]/g, '').trim();
+        console.log("After removing [AI_RESPONSE] (if any):", jsonString);
+      }
 
-      const parsedResponse = JSON.parse(aiResponse);
+      // 3. Check if the result looks like JSON before trying to parse
+      const potentialJson = jsonString.trim();
+      if (potentialJson.startsWith('{') || potentialJson.startsWith('[')) {
+        console.log("Attempting to parse potential JSON:", potentialJson);
 
-      // Handle backward compatibility with the old format (single event)
-      if (parsedResponse.isCalendarEvent && parsedResponse.eventDetails) {
-        // Convert old format to new format
+        if (!potentialJson) {
+          console.error("Potential JSON string is empty after cleaning, cannot parse.");
+          return {
+            isCalendarEvent: false,
+            response: "I received an empty response after cleaning. Could you try rephrasing?"
+          };
+        }
+
+        const parsedResponse = JSON.parse(potentialJson);
+
+        // Check for the unexpected array format [ { task: {...} } ]
+        if (Array.isArray(parsedResponse) && parsedResponse.length > 0 && parsedResponse[0].task) {
+          console.log("Detected array-based task format, converting to standard event format.");
+          const events = parsedResponse.map(item => {
+            const task = item.task;
+            let endTime = task.dueDate || task.endTime;
+            let startTime = task.startTime;
+
+            // If only endTime/dueDate is provided, set startTime 1 hour before
+            if (endTime && !startTime) {
+              try {
+                const endMillis = new Date(endTime).getTime();
+                startTime = new Date(endMillis - 60 * 60 * 1000).toISOString();
+              } catch (dateError) {
+                console.error("Error calculating start time from end time:", dateError);
+                startTime = endTime; // Fallback if date parsing fails
+              }
+            } else if (!endTime && startTime) {
+              // If only startTime is provided, set endTime 1 hour after
+               try {
+                const startMillis = new Date(startTime).getTime();
+                endTime = new Date(startMillis + 60 * 60 * 1000).toISOString();
+              } catch (dateError) {
+                console.error("Error calculating end time from start time:", dateError);
+                endTime = startTime; // Fallback if date parsing fails
+              }
+            } else if (!startTime && !endTime) {
+                // If neither is provided, maybe default to now + 1 hour?
+                // Or handle as an error/unclear request? For now, log and skip time.
+                console.warn("Task format missing both startTime and endTime/dueDate");
+                const now = new Date();
+                startTime = now.toISOString();
+                endTime = new Date(now.getTime() + 60 * 60 * 1000).toISOString();
+            }
+
+            return {
+              title: task.title || "Untitled Task",
+              description: task.description || "",
+              location: task.location || "",
+              startTime: ensureCorrectTimezone(startTime),
+              endTime: ensureCorrectTimezone(endTime),
+              allowReschedule: false, // Defaulting to false for tasks
+              isTaskPlanEvent: false, // Assuming these are individual tasks/events
+              priority: task.priority || 5, // Default priority
+              assignedTo: task.assignedTo || undefined
+            };
+          }).filter(event => event.startTime && event.endTime); // Filter out events where time calculation failed badly
+
+          if (events.length > 0) {
+             return {
+                isCalendarEvent: true,
+                events: events
+             };
+          } else {
+             console.error("Failed to convert any tasks from array format to event format.");
+             // Fall through to potentially treat as plain text if conversion fails
+          }
+        }
+
+        // Handle backward compatibility with the old format (single event)
+        if (parsedResponse.isCalendarEvent && parsedResponse.eventDetails) {
+          return {
+            isCalendarEvent: true,
+            events: [parsedResponse.eventDetails]
+          };
+        }
+        return parsedResponse;
+
+      } else {
+        // 4. If it doesn't look like JSON, treat it as a plain text response
+        console.log("Response doesn't look like JSON, treating as plain text:", aiResponse);
         return {
-          isCalendarEvent: true,
-          events: [parsedResponse.eventDetails]
+          isCalendarEvent: false,
+          isCalendarSummaryRequest: false,
+          isSpecificTimeQuery: false,
+          response: aiResponse // Return the original, unparsed response
         };
       }
 
-      return parsedResponse;
     } catch (e) {
-      console.error("Failed to parse AI response:", aiResponse);
+      // Log the error and the string that failed parsing
+      console.error("Failed to parse AI response string:", aiResponse, "Error:", e);
       return {
         isCalendarEvent: false,
-        response: "I'm having trouble understanding that. Could you try again?"
+        response: "I'm having trouble understanding the structure of that response. Could you try again?"
       };
     }
   } catch (error) {

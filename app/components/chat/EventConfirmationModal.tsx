@@ -10,6 +10,7 @@ interface EventDetails {
   location: string;
   startTime: string;
   endTime: string;
+  assignedTo?: string; // Added assignedTo
 }
 
 // Match the interface defined in chat.tsx
@@ -21,6 +22,8 @@ interface EventConfirmationModalProps {
   eventCount: number;
   currentEventIndex: number;
   isTaskPlanEvent?: boolean;
+  isProjectChat?: boolean; // Added to determine button text
+  currentUserIdentifier?: string | null; // Added to check if assigned to current user
 }
 
 const EventConfirmationModal = ({
@@ -30,9 +33,11 @@ const EventConfirmationModal = ({
   onCancel,
   eventCount,
   currentEventIndex,
-  isTaskPlanEvent = false
+  isTaskPlanEvent = false,
+  isProjectChat = false, // Added
+  currentUserIdentifier = null // Added
 }: EventConfirmationModalProps) => {
-  const { title, description, location, startTime, endTime } = eventDetails;
+  const { title, description, location, startTime, endTime, assignedTo } = eventDetails;
   
   // Format the dates for display
   const formatDate = (dateString: string) => {
@@ -43,6 +48,21 @@ const EventConfirmationModal = ({
       return dateString;
     }
   };
+
+  // Determine button text based on assignment and context
+  let confirmButtonText = "Add to Calendar";
+  if (isProjectChat) {
+    if (assignedTo && currentUserIdentifier && (assignedTo === currentUserIdentifier || assignedTo === eventDetails.assignedTo)) {
+      confirmButtonText = "Confirm My Task";
+    } else if (assignedTo) {
+      confirmButtonText = `Confirm for ${assignedTo}`;
+    } else {
+      confirmButtonText = "Add to Project Plan";
+    }
+  } else if (assignedTo && currentUserIdentifier && (assignedTo !== currentUserIdentifier && assignedTo !== eventDetails.assignedTo)) {
+    // Personal chat but assigned to someone else (shouldn't happen often with current AI prompt)
+    confirmButtonText = `Assign to ${assignedTo}`;
+  }
 
   return (
     <Modal
@@ -69,6 +89,13 @@ const EventConfirmationModal = ({
               </Text>
             )}
             
+            {assignedTo && (
+              <View className="mb-4 bg-teal-900/50 p-2 rounded">
+                <Text className="text-teal-400 font-semibold mb-1">Assigned To:</Text>
+                <Text className="text-white">{assignedTo}</Text>
+              </View>
+            )}
+
             <View className="mb-4">
               <Text className="text-teal-500 font-semibold mb-1">Title:</Text>
               <Text className="text-white text-lg">{title}</Text>
@@ -104,7 +131,7 @@ const EventConfirmationModal = ({
                 className="flex-1 bg-teal-600 rounded-2xl py-3 mr-2 items-center justify-center"
               >
                 <Text className="text-white font-semibold">
-                  {isTaskPlanEvent ? "Add to Calendar" : "Add to Calendar"}
+                  {confirmButtonText}
                 </Text>
               </TouchableOpacity>
               <TouchableOpacity

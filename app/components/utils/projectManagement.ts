@@ -1,6 +1,9 @@
 import { auth, db } from '@/firebaseConfig';
 import { addDoc, arrayRemove, arrayUnion, collection, deleteDoc, doc, getDoc, getDocs, query, Timestamp, updateDoc, where } from 'firebase/firestore';
 import { getUserByEmail } from './userManagement';
+import axios from 'axios'; // Import axios
+import { UserInfo } from '@contexts/UserContext'; // Import UserInfo type
+import { ProjectData as FullProjectData } from './ProjectChatManagement'; // Use the more complete interface
 
 export interface ProjectMember {
   email: string;
@@ -14,25 +17,88 @@ export interface ProjectData {
   creatorEmail: string;
   members: ProjectMember[];
   pendingInvites: string[];
+  sharedCalendarId?: string; // Added field
 }
 
-export const createProject = async (email: string, projectName: string) => {
+// Modify createProject to accept calendarAuth
+export const createProject = async (
+  email: string,
+  projectName: string,
+  calendarAuth?: UserInfo['calendarAuth'] // Add calendarAuth parameter
+) => {
+  let projectId: string | null = null;
   try {
-    const user = await getUserByEmail(email);
+    const userDoc = await getUserByEmail(email);
+    if (!userDoc) {
+      throw new Error("User not found");
+    }
+    const username = userDoc.data()?.username;
+    if (!username) {
+      throw new Error("Username not found for creator");
+    }
+
+    // Create project document first
     const docRef = await addDoc(collection(db, 'projects'), {
-      // id automatically created
       createdAt: new Date(),
       creatorEmail: email,
       name: projectName,
       members: [
-        { email: email, username: user.data().username },
+        { email: email, username: username },
       ],
-      pendingInvites: []
+      pendingInvites: [],
+      sharedCalendarId: null // Initialize as null
     });
-    console.log('New project ID:', docRef.id);
-    return true;
+    projectId = docRef.id;
+    console.log('New project document created:', projectId);
+
+    // --- Create Shared Google Calendar ---
+    if (calendarAuth?.access_token) {
+      console.log("Attempting to create shared Google Calendar...");
+      try {
+        const calendarResponse = await axios.post(
+          'https://www.googleapis.com/calendar/v3/calendars',
+          {
+            summary: `Bonsai Project: ${projectName}` // Calendar Name
+          },
+          {
+            headers: {
+              Authorization: `Bearer ${calendarAuth.access_token}`,
+              'Content-Type': 'application/json'
+            }
+          }
+        );
+
+        if (calendarResponse.status === 200 || calendarResponse.status === 201) {
+          const calendarId = calendarResponse.data.id;
+          console.log('Shared Google Calendar created with ID:', calendarId);
+
+          // Update the project document with the calendar ID
+          await updateDoc(doc(db, 'projects', projectId), {
+            sharedCalendarId: calendarId
+          });
+          console.log('Project document updated with sharedCalendarId.');
+
+          // TODO: Add initial members (creator) to the calendar ACL?
+          // This might require additional permissions/logic. For now, only creator has access.
+
+        } else {
+          console.warn('Failed to create shared Google Calendar:', calendarResponse.status, calendarResponse.data);
+          // Proceed without shared calendar if creation fails
+        }
+      } catch (calendarError: any) {
+        console.error('Error creating shared Google Calendar:', calendarError.response?.data || calendarError.message);
+        // Proceed without shared calendar if creation fails
+      }
+    } else {
+      console.log("Skipping shared calendar creation: User not signed in with Google or missing calendar auth.");
+    }
+    // --- End Calendar Creation ---
+
+    return true; // Project document creation was successful
   } catch (e) {
     console.error('Error creating project: ', e);
+    // Optional: Clean up Firestore document if calendar creation was the goal and it failed?
+    // For now, we keep the project document even if calendar fails.
     return false;
   }
 };
@@ -227,5 +293,36 @@ export const cancelProjectInvite = async (projectId: string, inviteEmail: string
   } catch (e: any) {
     console.error('Error cancelling project invite', e);
     return { success: false, error: e.message || 'Failed to cancel invite.' };
+  }
+};
+
+// Add this function to get project details by ID
+export const getProjectById = async (projectId: string): Promise<FullProjectData | null> => {
+  try {
+    const projectRef = doc(db, 'projects', projectId);
+    const projectSnap = await getDoc(projectRef);
+
+    if (projectSnap.exists()) {
+      const data = projectSnap.data();
+      // Ensure members and pendingInvites are arrays even if undefined in Firestore
+      const members = data.members || [];
+      const pendingInvites = data.pendingInvites || [];
+
+      return {
+        id: projectSnap.id,
+        name: data.name,
+        createdAt: data.createdAt,
+        creatorEmail: data.creatorEmail,
+        members: members,
+        pendingInvites: pendingInvites,
+        sharedCalendarId: data.sharedCalendarId // Include the sharedCalendarId
+      } as FullProjectData;
+    } else {
+      console.error('Project not found:', projectId);
+      return null;
+    }
+  } catch (error) {
+    console.error('Error fetching project by ID:', error);
+    return null;
   }
 };

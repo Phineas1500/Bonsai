@@ -28,6 +28,7 @@ export interface ProjectData {
   creatorEmail: string;
   members: ProjectMember[];
   pendingInvites: string[]; // Still just emails for pending
+  sharedCalendarId?: string; // Optional: ID of the shared Google Calendar
 }
 
 

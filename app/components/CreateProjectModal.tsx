@@ -1,9 +1,10 @@
-import { Modal, View, Text, TextInput, TouchableOpacity } from 'react-native';
+import { Modal, View, Text, TextInput, TouchableOpacity, ActivityIndicator } from 'react-native'; // Added ActivityIndicator
 import { useState } from 'react';
 import GradientButton from '@components/GradientButton';
 import { BlurView } from 'expo-blur';
 import { createProject } from './utils/projectManagement';
 import { auth } from '@/firebaseConfig';
+import { useUser } from '@contexts/UserContext'; // Import useUser
 
 interface CreateProjectModalProps {
   visible: boolean;
@@ -15,61 +16,86 @@ export default function CreateProjectModal({
   onRequestClose
 }: CreateProjectModalProps) {
   const currentUser = auth.currentUser;
+  const { userInfo } = useUser(); // Get userInfo from context
   const [projectName, setProjectName] = useState('');
   const [error, setError] = useState('');
+  const [isLoading, setIsLoading] = useState(false); // Add loading state
 
   const createNewProject = async () => {
+    setError('');
+    setIsLoading(true); // Start loading
     try {
-      if (!currentUser?.email) return;
-      if (projectName.length <= 0) {
+      if (!currentUser?.email) {
+        throw new Error('User not logged in');
+      };
+      if (projectName.trim().length <= 0) {
         throw new Error('Enter a project name');
       }
 
-      const created = await createProject(currentUser.email, projectName);
+      // Pass calendarAuth to createProject
+      const created = await createProject(
+        currentUser.email,
+        projectName.trim(),
+        userInfo?.calendarAuth // Pass the calendar auth object
+      );
 
       if (!created) {
-        throw new Error('Error creating project');
+        // Error might have been logged in createProject, provide generic message
+        throw new Error('Error creating project. Check console for details.');
       }
-      onRequestClose();
+      setProjectName(''); // Clear name on success
+      onRequestClose(); // Close modal on success
     } catch (err: any) {
       setError(err.message);
+    } finally {
+      setIsLoading(false); // Stop loading
     }
   }
+
+  // Function to handle closing the modal and resetting state
+  const handleClose = () => {
+    setProjectName('');
+    setError('');
+    setIsLoading(false); // Ensure loading is reset
+    onRequestClose();
+  };
 
   return (
     <Modal
       animationType="fade"
       transparent={true}
       visible={visible}
-      onRequestClose={onRequestClose}
+      onRequestClose={handleClose} // Use handleClose
     >
       <BlurView intensity={20} className="absolute w-full h-full">
         <View className="flex-1 mt-[35vh] items-center">
-          <View className="bg-teal-700 w-5/6 p-4 rounded-lg">
-            <Text className="text-white text-2xl font-bold">Enter a Project Name:</Text>
-            <View className="flex-col items-center mt-2 w-full">
-              {error ? <Text className="text-red-500 mb-2">{error}</Text> : null}
+          {/* Use bg-stone-800 for consistency? */}
+          <View className="bg-stone-800 w-5/6 p-5 rounded-lg shadow-lg">
+            <Text className="text-white text-xl font-bold mb-4 text-center">Create New Project</Text>
+            <View className="flex-col items-center w-full">
+              {error ? <Text className="text-red-500 mb-2 text-center">{error}</Text> : null}
               <TextInput
                 placeholder="Project name"
-                className="bg-gray-300 text-gray-600 w-full rounded-xl py-3 px-3"
-                editable={true}
+                // Use className instead of classStyle
+                className="bg-stone-700 text-white w-full rounded-lg py-3 px-4 mb-4"
+                placeholderTextColor="#9CA3AF" // Gray-400
+                editable={!isLoading} // Disable while loading
                 value={projectName}
                 onChangeText={setProjectName}
               />
               <GradientButton
-                text='CREATE PROJECT'
+                text={isLoading ? 'Creating...' : 'CREATE PROJECT'}
                 onPress={createNewProject}
-                containerClassName="w-full mt-2"
+                containerClassName="w-full"
+                disabled={isLoading} // Disable button while loading
               />
+              {isLoading && <ActivityIndicator size="small" color="#ffffff" style={{ marginTop: 8 }} />}
               <TouchableOpacity
-                className="rounded-xl w-full items-center"
-                onPress={() => {
-                  setProjectName('');
-                  setError('');
-                  onRequestClose();
-                }}
+                className="mt-4"
+                onPress={handleClose} // Use handleClose
+                disabled={isLoading} // Disable while loading
               >
-                <Text className="text-white font-bold text-md mt-3">Cancel</Text>
+                <Text className="text-gray-400 font-semibold text-md">Cancel</Text>
               </TouchableOpacity>
             </View>
           </View>

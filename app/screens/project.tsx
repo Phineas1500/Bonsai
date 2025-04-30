@@ -41,7 +41,7 @@ import { sendProjectInvite, cancelProjectInvite } from '../components/utils/proj
 import InviteMemberModal from '../components/InviteMemberModal';
 
 export default function ProjectScreen() {
-  const { projectId } = useLocalSearchParams();
+  const { projectId } = useLocalSearchParams<{ projectId: string }>();
   const { userInfo } = useUser();
   const currentUserEmail = auth.currentUser?.email || '';
   const scrollViewRef = useRef<ScrollView>(null);
@@ -176,7 +176,8 @@ export default function ProjectScreen() {
     tasks,
     refreshTasks,
     isProjectChat: true,
-    createMessage: createProjectMessage
+    createMessage: createProjectMessage,
+    projectId: projectId // Pass the projectId
   });
 
   // Handle sending project chat message
@@ -460,8 +461,6 @@ export default function ProjectScreen() {
               scrollToBottom();
             }}
             disabled={!newMessage.trim() || sendingMessage || isProcessing}
-            onPdfSelected={() => { }}
-            showPdfUploader={false}
             isLoading={sendingMessage || isProcessing}
           />
         </View>
@@ -498,6 +497,8 @@ export default function ProjectScreen() {
           eventCount={pendingEvents.length}
           currentEventIndex={currentEventIndex}
           isTaskPlanEvent={pendingEvents[currentEventIndex]?.isTaskPlanEvent || false}
+          isProjectChat={true} // Pass true for project chat
+          currentUserIdentifier={userInfo?.username || userInfo?.email || null} // Pass current user identifier
         />
       )}
 
