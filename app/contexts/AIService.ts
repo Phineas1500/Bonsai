@@ -1,6 +1,6 @@
 import { GoogleGenerativeAI, GenerativeModel, ChatSession } from '@google/generative-ai';
 import { getHistory, getChatSummary, saveChatSummary, getMessages } from '@components/utils/chatManagement';
-import { getProjectHistory, getProjectChatSummary, saveProjectChatSummary, getProjectMessages } from '@components/utils/projectChatManagement';
+import { getProjectHistory, getProjectChatSummary, saveProjectChatSummary, getProjectMessages } from '@components/utils/ProjectChatManagement';
 
 // Singleton class to manage AI chat sessions
 class AIService {

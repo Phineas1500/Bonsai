@@ -149,8 +149,83 @@ export const rejectProjectInvite = async (projectId: string) => {
   }
 };
 
-export const sendProjectInvite = async () => {
-  // @RAM HERE
-  // add invited user's email to pendingInvites for current project
-  // currently searching for project invites by going through all projects and searching for user's email
+export const sendProjectInvite = async (projectId: string, friendEmail: string) => {
+  try {
+    // get current user
+    const currentUser = auth.currentUser;
+    if (!currentUser?.email) {
+      throw new Error("You must be logged in to send project invites");
+    }
+
+    // get project data
+    const projectRef = doc(db, 'projects', projectId);
+    const projectSnap = await getDoc(projectRef);
+
+    if (!projectSnap.exists()) {
+      throw new Error('Project not found');
+    }
+
+    const projectData = projectSnap.data() as Omit<ProjectData, 'id'>;
+
+    // Check if user is the creator (or maybe allow members to invite later?)
+    // For now, only creator can invite
+    if (projectData.creatorEmail !== currentUser.email) {
+      throw new Error('Only the project creator can invite members.');
+    }
+
+    // Check if the friend is already a member
+    const isMember = projectData.members.some(member => member.email === friendEmail);
+    if (isMember) {
+      throw new Error('This user is already a member of the project.');
+    }
+
+    // Check if the friend already has a pending invite
+    const hasPendingInvite = projectData.pendingInvites.includes(friendEmail);
+    if (hasPendingInvite) {
+      throw new Error('This user already has a pending invite.');
+    }
+
+    // Add friend's email to pendingInvites array
+    await updateDoc(projectRef, {
+      pendingInvites: arrayUnion(friendEmail.toLowerCase())
+    });
+
+    console.log(`Invite sent to ${friendEmail} for project ${projectId}`);
+    return { success: true };
+  } catch (e: any) {
+    console.error('Error sending project invite', e);
+    return { success: false, error: e.message || 'Failed to send invite.' };
+  }
+};
+
+export const cancelProjectInvite = async (projectId: string, inviteEmail: string) => {
+  try {
+    // get current user
+    const currentUser = auth.currentUser;
+    if (!currentUser?.email) {
+      throw new Error("You must be logged in to cancel project invites");
+    }
+
+    // get project data to verify creator
+    const projectRef = doc(db, 'projects', projectId);
+    const projectSnap = await getDoc(projectRef);
+    if (!projectSnap.exists()) {
+      throw new Error('Project not found');
+    }
+    const projectData = projectSnap.data() as Omit<ProjectData, 'id'>;
+    if (projectData.creatorEmail !== currentUser.email) {
+      throw new Error('Only the project creator can cancel invites.');
+    }
+
+    // remove email from pendingInvites array
+    await updateDoc(projectRef, {
+      pendingInvites: arrayRemove(inviteEmail)
+    });
+
+    console.log(`Invite cancelled for ${inviteEmail} for project ${projectId}`);
+    return { success: true };
+  } catch (e: any) {
+    console.error('Error cancelling project invite', e);
+    return { success: false, error: e.message || 'Failed to cancel invite.' };
+  }
 };

@@ -8,7 +8,7 @@ import { auth } from '@/firebaseConfig';
 import FriendsList from '@components/social/FriendsList';
 import ProjectsList from '@components/social/ProjectsList';
 import { acceptProjectInvite, getAllProjectInvites, rejectProjectInvite } from '../components/utils/projectManagement';
-import { ProjectData } from '../components/utils/projectChatManagement';
+import { ProjectData } from '../components/utils/ProjectChatManagement';
 
 interface FriendRequest {
   email: string;

@@ -8,7 +8,8 @@ import {
   Platform,
   ActivityIndicator,
   Pressable,
-  Image
+  Image,
+  Alert
 } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
@@ -27,7 +28,7 @@ import { auth } from '@/firebaseConfig';
 import { Timestamp } from 'firebase/firestore';
 
 import { useUser } from '@contexts/UserContext';
-import { useProjectChat } from '@components/utils/projectChatManagement';
+import { useProjectChat } from '@components/utils/ProjectChatManagement';
 import AIService from '@contexts/AIService';
 import { ChatMessage, MessageInput, EventConfirmationModal } from '@components/chat';
 import { chatbot } from '@components/hooks/chatbotHook';
@@ -36,6 +37,8 @@ import TaskPlanConfirmationModal from '@components/chat/TaskPlanConfirmationModa
 
 import { getUsernameFromEmail } from '@components/utils/userManagement';
 import DeleteProjectModal from '../components/DeleteProjectModal';
+import { sendProjectInvite, cancelProjectInvite } from '../components/utils/projectManagement';
+import InviteMemberModal from '../components/InviteMemberModal';
 
 export default function ProjectScreen() {
   const { projectId } = useLocalSearchParams();
@@ -66,23 +69,37 @@ export default function ProjectScreen() {
   // State for showing delete project prompt
   const [deleteProjectPrompt, setDeleteProjectPrompt] = useState(false);
 
+  // State for invite modal
+  const [showInviteModal, setShowInviteModal] = useState(false);
+
+  // State for cancelling invite loading
+  const [cancellingInvite, setCancellingInvite] = useState<string | null>(null);
+
   // Fetch usernames for pending invites
   useEffect(() => {
     const fetchPendingUsernames = async () => {
-      if (!project?.pendingInvites || project.pendingInvites.length === 0) return;
-
-      const usernamesMap: Record<string, string> = {};
-
-      for (const email of project.pendingInvites) {
-        const username = await getUsernameFromEmail(email);
-        usernamesMap[email] = username;
+      if (!project?.pendingInvites || project.pendingInvites.length === 0) {
+        setPendingInviteUsernames({}); // Clear if no pending invites
+        return;
       }
 
+      const usernamesMap: Record<string, string> = {};
+      const fetchPromises = project.pendingInvites.map(async (email) => {
+        try {
+          const username = await getUsernameFromEmail(email);
+          usernamesMap[email] = username;
+        } catch (error) {
+          console.warn(`Could not fetch username for pending invite: ${email}`, error);
+          usernamesMap[email] = email; // Fallback to email if fetch fails
+        }
+      });
+
+      await Promise.all(fetchPromises);
       setPendingInviteUsernames(usernamesMap);
     };
 
     fetchPendingUsernames();
-  }, [project?.pendingInvites]);
+  }, [project?.pendingInvites]); // Rerun when pendingInvites array changes
 
   // Initialize AI service for project chat
   useEffect(() => {
@@ -167,6 +184,26 @@ export default function ProjectScreen() {
     if (newMessage.trim()) {
       setNewMessage('');
       const success = await handleSend(newMessage);
+    }
+  };
+
+  // Handle cancelling a project invite
+  const handleCancelInvite = async (inviteEmail: string) => {
+    if (!project?.id) return;
+    setCancellingInvite(inviteEmail); // Set loading state for this specific invite
+    try {
+      const result = await cancelProjectInvite(project.id, inviteEmail);
+      if (result.success) {
+        // Refresh project data implicitly via the listener in useProjectChat
+        // No need to manually update pendingInviteUsernames here, it will refetch
+        Alert.alert("Success", "Invite cancelled.");
+      } else {
+        Alert.alert("Error", result.error || "Failed to cancel invite.");
+      }
+    } catch (error: any) {
+      Alert.alert("Error", error.message || "An error occurred while cancelling the invite.");
+    } finally {
+      setCancellingInvite(null); // Clear loading state
     }
   };
 
@@ -291,9 +328,8 @@ export default function ProjectScreen() {
             {isCreator && project?.pendingInvites && project.pendingInvites.length > 0 && (
               <View className="mt-6">
                 <Text className="text-teal-500 text-xs uppercase font-semibold mb-2">Pending Invites</Text>
-                {project.pendingInvites.map((invite, index) => {
-                  // Use the cached username for the invite
-                  const username = pendingInviteUsernames[invite];
+                {project.pendingInvites.map((inviteEmail, index) => {
+                  const username = pendingInviteUsernames[inviteEmail] || inviteEmail; // Fallback to email if username not loaded yet
                   const seed = encodeURIComponent(username);
                   const avatarUrl = `https://api.dicebear.com/9.x/fun-emoji/png?seed=${seed}`;
 
@@ -305,11 +341,19 @@ export default function ProjectScreen() {
                       />
                       <View className="flex-1">
                         <Text className="text-white">{username}</Text>
-                        <Text className="text-gray-500 text-xs">{invite}</Text>
+                        <Text className="text-gray-500 text-xs">{inviteEmail}</Text>
                       </View>
-                      <View className="ml-1 bg-yellow-900/30 rounded-full px-2 py-1">
-                        <Text className="text-amber-400 text-xs">Pending</Text>
-                      </View>
+                      {/* Cancel Invite Button */}
+                      {cancellingInvite === inviteEmail ? (
+                        <ActivityIndicator size="small" color="#f87171" className="ml-2" />
+                      ) : (
+                        <TouchableOpacity
+                          onPress={() => handleCancelInvite(inviteEmail)}
+                          className="ml-2 p-1.5 bg-red-900/50 rounded-full"
+                        >
+                          <Feather name="x" size={14} color="#f87171" />
+                        </TouchableOpacity>
+                      )}
                     </View>
                   );
                 })}
@@ -319,7 +363,7 @@ export default function ProjectScreen() {
             {isCreator && (
               <TouchableOpacity
                 className="mt-6 bg-teal-800 py-3 px-4 rounded-lg flex-row items-center justify-center"
-                onPress={() => alert("PLACEHOLDER ( no function made yet )")}
+                onPress={() => setShowInviteModal(true)} // Open the invite modal
               >
                 <Feather name="user-plus" size={16} color="white" />
                 <Text className="text-white font-medium ml-2">Invite Member</Text>
@@ -407,7 +451,7 @@ export default function ProjectScreen() {
         </View>
 
         {/* MESSAGE INPUT */}
-        <View className='translate-y-1'>
+        <View>
           <MessageInput
             value={newMessage}
             onChangeText={setNewMessage}
@@ -431,6 +475,18 @@ export default function ProjectScreen() {
           }}
         />
       </View>
+
+      {/* Invite Member Modal */}
+      {project && (
+        <InviteMemberModal
+          visible={showInviteModal}
+          onRequestClose={() => setShowInviteModal(false)}
+          projectId={project.id}
+          projectName={project.name}
+          currentMembers={project.members.map(m => m.email)} // Pass emails of current members
+          pendingInvites={project.pendingInvites} // Pass emails of pending invites
+        />
+      )}
 
       {/* Modals for AI processing results */}
       {pendingEvents.length > 0 && currentEventIndex < pendingEvents.length && (

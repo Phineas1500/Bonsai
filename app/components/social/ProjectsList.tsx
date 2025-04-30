@@ -5,7 +5,7 @@ import { db, auth } from '@/firebaseConfig';
 import { Feather } from '@expo/vector-icons';
 import { router } from 'expo-router';
 
-import { ProjectData, ProjectMember } from '../utils/projectChatManagement';
+import { ProjectData, ProjectMember } from '../utils/ProjectChatManagement';
 import CreateProjectModal from '../CreateProjectModal';
 
 interface ProjectsListProps {
