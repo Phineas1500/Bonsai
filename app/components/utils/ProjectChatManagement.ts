@@ -219,6 +219,7 @@ export const getProjectMessages = async (projectId: string) => {
  */
 export const saveProjectChatSummary = async (projectId: string, summary: string, lastMessageId?: string): Promise<void> => {
   try {
+    console.log("\tsaving project summary...");
     const summaryRef = collection(db, `projects/${projectId}/summaries`);
 
     // if existing summary exists, update it; otherwise create a new one
@@ -232,12 +233,14 @@ export const saveProjectChatSummary = async (projectId: string, summary: string,
         timestamp: new Date(),
         lastMessageId: lastMessageId || null
       });
+      console.log("\tupdated existing project summary");
     } else {
       await addDoc(summaryRef, {
         text: summary,
         timestamp: new Date(),
         lastMessageId: lastMessageId || null
       });
+      console.log("\tcreated new project summary");
     }
   } catch (error) {
     console.error("Error saving project chat summary:", error);
