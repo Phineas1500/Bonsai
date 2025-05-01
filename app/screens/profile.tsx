@@ -84,21 +84,27 @@ export default function Profile() {
       }
       // Otherwise use the current user from context
       else if (contextUserInfo) {
-        // Use the user info from context
-        const userData: UserInfo = {
-          email: contextUserInfo.email,
-          username: contextUserInfo.username,
-          signinType: contextUserInfo.signinType || 'email', // Default to email if not set
-          createdAt: contextUserInfo.createdAt || new Date().toISOString(),
-          friends: contextUserInfo.friends || [],
-          incomingFriendRequests: contextUserInfo.incomingFriendRequests || [],
-          outgoingFriendRequests: contextUserInfo.outgoingFriendRequests || [],
-          streak: contextUserInfo.streak || 0,
-          lastCheckInDate: contextUserInfo.lastCheckInDate || "0",
-          achievements: contextUserInfo.achievements || []
-        };
-        setUserInfo(userData);
-        setIsCurrentUser(true);
+        const userDoc = await getUserByUsername(contextUserInfo.username);
+        if (userDoc) {
+          const data = userDoc.data();
+          const userData: UserInfo = {
+            email: data.email,
+            username: data.username,
+            signinType: data.signinType,
+            createdAt: data.createdAt,
+            friends: data.friends || [],
+            incomingFriendRequests: data.incomingFriendRequests || [],
+            outgoingFriendRequests: data.outgoingFriendRequests || [],
+            streak: data.streak || 0,
+            lastCheckInDate: data.lastCheckInDate || "0",
+            achievements: data.achievements || []
+          };
+
+          setUserInfo(userData);
+          setIsCurrentUser(true);
+        } else {
+          throw new Error('User not found');
+        }
       } else {
         throw new Error('User info not available in context');
       }
