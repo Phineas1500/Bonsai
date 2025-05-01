@@ -1,4 +1,4 @@
-import { View, Text, Image, TouchableOpacity, Alert, ActivityIndicator } from "react-native";
+import { View, Text, Image, TouchableOpacity, Alert, ActivityIndicator, ScrollView } from "react-native";
 import GradientText from "@components/GradientText";
 import { auth } from "@/firebaseConfig";
 import { useEffect, useState, useMemo } from "react";
@@ -16,6 +16,8 @@ import { format } from 'date-fns';
 import { useLocalSearchParams } from "expo-router";
 import { useUser } from "@contexts/UserContext";
 import { Feather } from '@expo/vector-icons';
+import AchievementItem from "../components/AchievementItem";
+import { Achievement, getAchievementDetails } from "../components/utils/achievementManagement";
 
 // interface of all user info stored in firestore
 interface UserInfo {
@@ -28,6 +30,7 @@ interface UserInfo {
   outgoingFriendRequests?: string[];
   streak?: number;
   lastCheckInDate?: string;
+  achievements?: string[];
 }
 
 type FriendshipStatus = 'none' | 'friends' | 'incoming' | 'outgoing' | 'error';
@@ -40,6 +43,7 @@ export default function Profile() {
   const [isCurrentUser, setIsCurrentUser] = useState(true);
   const [friendStatus, setFriendStatus] = useState<FriendshipStatus>('none');
   const [friendActionLoading, setFriendActionLoading] = useState(false);
+  const [achievements, setAchievements] = useState<Achievement[]>([]);
 
   const loadUserInfo = async () => {
     try {
@@ -59,7 +63,8 @@ export default function Profile() {
             incomingFriendRequests: data.incomingFriendRequests || [],
             outgoingFriendRequests: data.outgoingFriendRequests || [],
             streak: data.streak || 0,
-            lastCheckInDate: data.lastCheckInDate || "0"
+            lastCheckInDate: data.lastCheckInDate || "0",
+            achievements: data.achievements || []
           };
           setUserInfo(userData);
 
@@ -79,20 +84,27 @@ export default function Profile() {
       }
       // Otherwise use the current user from context
       else if (contextUserInfo) {
-        // Use the user info from context
-        const userData: UserInfo = {
-          email: contextUserInfo.email,
-          username: contextUserInfo.username,
-          signinType: contextUserInfo.signinType || 'email', // Default to email if not set
-          createdAt: contextUserInfo.createdAt || new Date().toISOString(),
-          friends: contextUserInfo.friends || [],
-          incomingFriendRequests: contextUserInfo.incomingFriendRequests || [],
-          outgoingFriendRequests: contextUserInfo.outgoingFriendRequests || [],
-          streak: contextUserInfo.streak || 0,
-          lastCheckInDate: contextUserInfo.lastCheckInDate || "0"
-        };
-        setUserInfo(userData);
-        setIsCurrentUser(true);
+        const userDoc = await getUserByUsername(contextUserInfo.username);
+        if (userDoc) {
+          const data = userDoc.data();
+          const userData: UserInfo = {
+            email: data.email,
+            username: data.username,
+            signinType: data.signinType,
+            createdAt: data.createdAt,
+            friends: data.friends || [],
+            incomingFriendRequests: data.incomingFriendRequests || [],
+            outgoingFriendRequests: data.outgoingFriendRequests || [],
+            streak: data.streak || 0,
+            lastCheckInDate: data.lastCheckInDate || "0",
+            achievements: data.achievements || []
+          };
+
+          setUserInfo(userData);
+          setIsCurrentUser(true);
+        } else {
+          throw new Error('User not found');
+        }
       } else {
         throw new Error('User info not available in context');
       }
@@ -202,6 +214,18 @@ export default function Profile() {
     loadUserInfo();
   }, [usernameParam]);
 
+  // load user achievements once userInfo has been loaded
+  useEffect(() => {
+    const loadAchievements = async () => {
+      if (userInfo) {
+        const achievementDetails = await getAchievementDetails(userInfo.email, userInfo.achievements);
+        setAchievements(achievementDetails);
+      }
+    }
+
+    loadAchievements();
+  }, [userInfo]);
+
   // Get button text based on friend status
   const getFriendButtonText = () => {
     switch (friendStatus) {
@@ -279,9 +303,9 @@ export default function Profile() {
               <View className="items-center mt-3">
                 <TouchableOpacity
                   className={`flex-row items-center justify-center px-8 py-2 rounded-full ${friendStatus === 'friends' ? 'bg-teal-600' :
-                      friendStatus === 'outgoing' ? 'bg-orange-800' :
-                        friendStatus === 'incoming' ? 'bg-blue-800' :
-                          'bg-teal-800'
+                    friendStatus === 'outgoing' ? 'bg-orange-800' :
+                      friendStatus === 'incoming' ? 'bg-blue-800' :
+                        'bg-teal-800'
                     }`}
                   onPress={handleFriendAction}
                   disabled={friendActionLoading}
@@ -299,10 +323,10 @@ export default function Profile() {
             )}
 
             {/* Achievements and Streaks */}
-            <View className="mt-6">
+            <View>
               {/* Chatbot Check-in Streak */}
               <View className="items-center">
-                <Text className="text-white font-bold mt-4">
+                <Text className="text-white font-bold mt-8">
                   Daily Check-In Streak:
                 </Text>
                 <GradientText
@@ -310,6 +334,24 @@ export default function Profile() {
                   classStyle="text-3xl font-bold"
                   size={[800, 40]}
                 />
+              </View>
+
+              {/* Achievements */}
+              <View>
+                <Text className="text-white font-bold my-4">
+                  Achievements
+                </Text>
+                <ScrollView horizontal={true} showsHorizontalScrollIndicator={false} className="flex-row">
+                  {achievements.map((a, index) => (
+                    <AchievementItem
+                      key={index}
+                      url={a.url}
+                      title={a.title}
+                      description={a.description}
+                      classStyle={index < achievements.length - 1 ? "mr-4" : ""}
+                    />
+                  ))}
+                </ScrollView>
               </View>
             </View>
 

@@ -182,6 +182,7 @@ export const acceptProjectInvite = async (projectId: string) => {
 
     // add username and email to members array
     const user = await getUserByEmail(email);
+    if (!user) throw new Error('Error getting user');
     const projectRef = doc(db, 'projects', projectId);
     const username = user.data().username;
     console.log(email, username);
