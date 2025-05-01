@@ -73,14 +73,14 @@ export function NotificationProvider({ children }: { children: React.ReactNode})
 
     //add new listeners if push token changes
     useEffect(() => {
-        //if no expo token then return and don't add listeners 
+        //if no expo token then return and don't add listeners
         if (!expoPushToken) {
             return;
         }
 
         //also possibly schedule notifications for tasks
         updateTaskNotifications();
-        
+
         notificationListener.current = Notifications.addNotificationReceivedListener(notification => {
             console.log("Notification recieved: ", notification);
             setNotifications(prev => [...prev, notification]);
@@ -114,10 +114,10 @@ export function NotificationProvider({ children }: { children: React.ReactNode})
 
     /**
      * fetch the server state of notification preferences for a user and update the
-     * local user info context with that info. If the user exists but doesn't have any 
+     * local user info context with that info. If the user exists but doesn't have any
      * notification preferences then create default preferences
-     * 
-     * @returns 
+     *
+     * @returns
      */
     const fetchNotificationPreferences = async () => {
       try {
@@ -128,7 +128,7 @@ export function NotificationProvider({ children }: { children: React.ReactNode})
           return;
         }
 
-        //check if user has notification preferences set 
+        //check if user has notification preferences set
         const userDoc = await getUserByEmail(userInfo.email);
         if (!userDoc) {
           setPreferencesLoading(false);
@@ -144,7 +144,7 @@ export function NotificationProvider({ children }: { children: React.ReactNode})
             notificationPreferences: preferences
           })
         } else {
-          //if user doesn't have prefernces, create default ones 
+          //if user doesn't have prefernces, create default ones
           console.log("User doesn't have notification preferences, creating default ones");
           updateNotificationPreferences(DEFAULT_NOTIFICATION_PREFERENCES, userInfo.email);
         }
@@ -158,9 +158,9 @@ export function NotificationProvider({ children }: { children: React.ReactNode})
 
     /**
      * updates the notification preferences locally for the user context and also in the database
-     * 
-     * @param newPreferences 
-     * @param email 
+     *
+     * @param newPreferences
+     * @param email
      */
     const updateNotificationPreferences = async (newPreferences: Partial<NotificationPreferences>, email: string) => {
       try {
@@ -183,7 +183,7 @@ export function NotificationProvider({ children }: { children: React.ReactNode})
         updateUserInfo({
           notificationPreferences: mergedPrefs
         });
-      
+
         // Pass the new merged preferences directly to avoid stale state
         await updateTaskNotifications(mergedPrefs);
 
@@ -194,8 +194,8 @@ export function NotificationProvider({ children }: { children: React.ReactNode})
 
     /**
      * Remove all currently scheduled notifications for tasks. Check if notifications should be scheduled and schedule if so.
-     * 
-     * @returns 
+     *
+     * @returns
      */
     const updateTaskNotifications = async (providedPrefs?: NotificationPreferences) => {
       // If user hasn't logged in yet then don't do anything
@@ -206,12 +206,12 @@ export function NotificationProvider({ children }: { children: React.ReactNode})
 
       // Use provided preferences or fall back to context state
       const notificationPreferences = providedPrefs || userInfo?.notificationPreferences;
-      
+
       if (!notificationPreferences) {
         console.log("user doesn't have any notification preferences")
         return;
       }
-      
+
       if (!notificationPreferences.notificationsEnabled) {
         console.log("User has notifications disabled");
         return;
@@ -234,41 +234,41 @@ export function NotificationProvider({ children }: { children: React.ReactNode})
           triggerTime: taskItemData.startTime, //google calendar uses ISO compatible strings
           priority: taskItemData.priority // Add priority to the payload
         }
-        
+
         // Schedule notifications based on user preferences
         const scheduleThreads = [];
-        
+
         // Schedule frequency-based notifications (existing functionality)
         if (notificationPreferences.reminderOffsets && notificationPreferences.reminderOffsets.length > 0) {
           scheduleThreads.push(addNotificationForTask(notifPayload, taskItemData.id, notificationPreferences.reminderOffsets));
         }
-        
+
         // Schedule priority-based notifications if enabled
         if (notificationPreferences.priorityNotificationsEnabled) {
           const priorityOffsets = getPriorityOffsets(taskItemData.priority);
           scheduleThreads.push(addNotificationForTask(notifPayload, taskItemData.id, priorityOffsets, true));
         }
-        
+
         // Wait for all notification scheduling to complete
         return Promise.all(scheduleThreads);
       });
-      
+
       await Promise.all(threads);
     }
 
     /**
-     * Schedules a local notification for that task that will trigger at the specified 
+     * Schedules a local notification for that task that will trigger at the specified
      * time. Adds the task notification to firebase to record that a notification for that
-     * task has been scheduled. If this task is to be notified with a greater frequency 
+     * task has been scheduled. If this task is to be notified with a greater frequency
      * then multiple notifications are set.
-     * 
+     *
      * @param notification the notification payload for the notification to show
      * @param taskId the taskId given by google calendar to uniquely identify the task
-     * @returns 
+     * @returns
      */
     const addNotificationForTask = async (
-      notification: NotificationPayload, 
-      taskId: string, 
+      notification: NotificationPayload,
+      taskId: string,
       offsets: number[],
       isPriorityBased: boolean = false
     ) => {
@@ -289,12 +289,12 @@ export function NotificationProvider({ children }: { children: React.ReactNode})
           const newNotif: NotificationPayload = {
             email: notification.email,
             title: notification.title,
-            body: notification.body, 
+            body: notification.body,
             data: notification.data,
             triggerTime: newTime.toISOString(),
             priority: isPriorityBased ? notification.priority : undefined // Only include priority for priority-based notifications
           }
-          
+
           //each notification for a task will have a unique notification id and same task id
           const notificationID = await scheduleLocalNotification(newNotif);
           if (!notificationID) {
@@ -316,16 +316,16 @@ export function NotificationProvider({ children }: { children: React.ReactNode})
           });
           return;
         });
-        
+
         await Promise.all(threads);
-        
+
       } catch (error: any) {
         console.error("Problem adding notification for user", error);
       }
     }
 
     const removeScheduledNotifications = async (email: string) => {
-      
+
       const collectionRef = collection(db, "tasksToNotify", email, "notifications");
       const docsSnapshot = await getDocs(collectionRef);
 
@@ -362,7 +362,7 @@ export function NotificationProvider({ children }: { children: React.ReactNode})
                 if (expoPushToken != pushTokenString) {
                     console.log("User has expo push token: ", pushTokenString);
                     setExpoPushToken(pushTokenString);
-                    
+
                 }
             }
         } catch (error: any) {
@@ -386,7 +386,7 @@ export function NotificationProvider({ children }: { children: React.ReactNode})
             lightColor: "#FF231F7C",
           });
         }
-      
+
         if (Device.isDevice) {
           const { status: existingStatus } = await Notifications.getPermissionsAsync();
           let finalStatus = existingStatus;
@@ -412,7 +412,7 @@ export function NotificationProvider({ children }: { children: React.ReactNode})
               })
             ).data;
             console.log(pushTokenString);
-      
+
             //store push notification in database
             await storePushNotificationToken(pushTokenString, userEmail);
             setExpoPushToken(pushTokenString);
@@ -441,7 +441,7 @@ export function NotificationProvider({ children }: { children: React.ReactNode})
           console.error("Cannot store push notification. User email unavailable.");
           return;
         }
-    
+
         const userRef = doc(db, "users", userEmail);
         await updateDoc(userRef, {
           expoPushToken: token
@@ -458,18 +458,18 @@ export function NotificationProvider({ children }: { children: React.ReactNode})
         console.log("Waiting for preferences to load before requesting permissions");
         return;
       }
-      
+
       // Skip if user already has notification preferences set (they've already been asked)
       if (userInfo?.notificationPreferences?.hasBeenPrompted) {
         return;
       }
-      
+
       try {
         // NEW: Check if there are existing preferences in Firebase first
         if (userInfo?.email) {
           const userDocRef = doc(db, "users", userInfo.email);
           const userDocSnap = await getDoc(userDocRef);
-          
+
           if (userDocSnap.exists() && userDocSnap.data().notificationPreferences) {
             console.log("Found existing notification preferences in Firebase, using those");
             return;
@@ -478,10 +478,10 @@ export function NotificationProvider({ children }: { children: React.ReactNode})
 
         // Rest of function remains unchanged
         const { status: existingStatus } = await Notifications.getPermissionsAsync();
-        
+
         if (existingStatus !== 'undetermined') {
           const isEnabled = existingStatus === 'granted';
-          
+
           if (userInfo?.email) {
             // Set notification preferences based on permission status
             updateNotificationPreferences({
@@ -491,26 +491,26 @@ export function NotificationProvider({ children }: { children: React.ReactNode})
           }
           return;
         }
-        
+
         // Request permission
         const { status } = await Notifications.requestPermissionsAsync();
         const isEnabled = status === 'granted';
-        
+
         // If permission granted, set up push token
         if (isEnabled && userInfo?.email) {
-          const projectId = Constants?.expoConfig?.extra?.eas?.projectId ?? 
+          const projectId = Constants?.expoConfig?.extra?.eas?.projectId ??
                             Constants?.easConfig?.projectId;
-                            
+
           if (projectId) {
             const pushTokenString = (await Notifications.getExpoPushTokenAsync({
               projectId,
             })).data;
-            
+
             await storePushNotificationToken(pushTokenString, userInfo.email);
             setExpoPushToken(pushTokenString);
           }
         }
-        
+
         // Update user preferences based on response
         if (userInfo?.email) {
           updateNotificationPreferences({
@@ -524,12 +524,12 @@ export function NotificationProvider({ children }: { children: React.ReactNode})
     };
 
     return (
-        <NotificationContext.Provider 
+        <NotificationContext.Provider
         value={{
-          enableNotifications, 
-          expoPushToken, 
-          notifications, 
-          error, 
+          enableNotifications,
+          expoPushToken,
+          notifications,
+          error,
           updateNotificationPreferences,
           notificationPreferences: userInfo?.notificationPreferences ?? DEFAULT_NOTIFICATION_PREFERENCES,
           requestInitialNotificationPermissions,
