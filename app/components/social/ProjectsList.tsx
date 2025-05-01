@@ -7,6 +7,7 @@ import { router } from 'expo-router';
 
 import { ProjectData, ProjectMember } from '../utils/ProjectChatManagement';
 import CreateProjectModal from '../CreateProjectModal';
+import { checkProjectAchievement } from '../utils/achievementManagement';
 
 interface ProjectsListProps {
   refreshTrigger?: boolean; // Can be used to trigger a refresh from parent
@@ -54,6 +55,11 @@ const ProjectsList = ({ refreshTrigger }: ProjectsListProps) => {
   useEffect(() => {
     fetchProjects();
   }, [currentUser, refreshTrigger]);
+
+  useEffect(() => {
+    console.log(projects.length);
+    checkProjectAchievement(projects.length);
+  }, [projects]);
 
   // Navigate to project details screen
   const handleProjectPress = (projectId: string) => {

@@ -1,5 +1,5 @@
 import { auth, db } from '@/firebaseConfig';
-import { arrayUnion, doc, Timestamp, updateDoc } from 'firebase/firestore';
+import { arrayUnion, doc, updateDoc } from 'firebase/firestore';
 import { getUserByEmail } from './userManagement';
 
 // Achievement type
@@ -50,30 +50,91 @@ export const updateAchievements = async (userEmail: string, newAchievement: stri
   }
 };
 
+export const sendAchievementNotification = async (userEmail: string, newAchievement: string) => {
+
+};
+
+// Getting started achievement on account creation
+export const gettingStartedAchievement = async () => {
+  try {
+    const user = auth.currentUser;
+    if (user == null || user.email == null) {
+      throw new Error('User not found');
+    }
+    await updateAchievements(user.email, "gettingStarted");
+  } catch (e) {
+    console.error('Error awarding getting started achievement: ', e);
+  }
+};
+
 // Check if a user has obtained a friend achievement
 /* Takes in userEmail as a parameter because this can be triggered through the action
    of another user */
 export const checkFriendAchievement = async (userEmail: string) => {
   try {
+    const user = await getUserByEmail(userEmail);
+    if (!user) throw new Error('Error getting user');
 
+    const numFriends = user.data().friends.length;
+    switch (numFriends) {
+      case 1:
+        await updateAchievements(user.data().email, "firstFriend");
+        break;
+      case 5:
+        await updateAchievements(user.data().email, "fiveFriends");
+        break;
+      case 10:
+        await updateAchievements(user.data().email, "tenFriends");
+        break;
+      default:
+    }
   } catch (e) {
     console.error('Error checking if new friend achievement obtained: ', e);
   }
 };
 
 // Check if a user has obtained a project achievement
-export const checkProjectAchievement = async () => {
+export const checkProjectAchievement = async (numProjects: number) => {
   try {
+    const user = auth.currentUser;
+    if (user == null || user.email == null) {
+      throw new Error('User not found');
+    }
 
+    switch (numProjects) {
+      case 1:
+        await updateAchievements(user.email, "firstProject");
+        break;
+      default:
+    }
   } catch (e) {
     console.error('Error checking if new project achievement obtained: ', e);
   }
 };
 
 // Check if a user has obtained a streak achievement
-export const checkStreakAchievement = async () => {
+export const checkStreakAchievement = async (streak: number) => {
   try {
+    const user = auth.currentUser;
+    if (user == null || user.email == null) {
+      throw new Error('User not found');
+    }
 
+    switch (streak) {
+      case 7:
+        await updateAchievements(user.email, "perfectWeek");
+        break;
+      case 10:
+        await updateAchievements(user.email, "tenStreak");
+        break;
+      case 20:
+        await updateAchievements(user.email, "twentyStreak");
+        break;
+      case 30:
+        await updateAchievements(user.email, "perfectMonth");
+        break;
+      default:
+    }
   } catch (e) {
     console.error('Error checking if new streak achievement obtained: ', e);
   }
