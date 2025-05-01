@@ -1,6 +1,7 @@
 import { auth, db } from '@/firebaseConfig';
 import { arrayUnion, doc, updateDoc } from 'firebase/firestore';
 import { getUserByEmail } from './userManagement';
+import { sendPushNotification } from './notificationAPI';
 
 // Achievement type
 export type Achievement = {
@@ -45,13 +46,31 @@ export const updateAchievements = async (userEmail: string, newAchievement: stri
     await updateDoc(doc(db, "users", userEmail), {
       achievements: arrayUnion(newAchievement)
     });
+    await sendAchievementNotification(userEmail, newAchievement);
   } catch (e) {
     console.error('Error updating achievements: ', e);
   }
 };
 
 export const sendAchievementNotification = async (userEmail: string, newAchievement: string) => {
+  const user = await getUserByEmail(userEmail);
+  if (!user) throw new Error('Error getting user');
 
+  const userInfo = user.data();
+  const notifPrefs = userInfo.notificationPreferences;
+  if (!notifPrefs) {
+    console.log("Sending user doesn't have notification preferences");
+    return;
+  }
+  if (notifPrefs.notificationsEnabled) {
+    // Send notification of new achievement
+    sendPushNotification({
+      email: userEmail,
+      title: 'New Achievement Earned!',
+      body: `You have earned the achievement ${listOfAchievements[newAchievement].title}`,
+      data: {}
+    });
+  }
 };
 
 // Getting started achievement on account creation
