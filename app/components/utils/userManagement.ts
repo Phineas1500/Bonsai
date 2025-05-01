@@ -38,9 +38,9 @@ export const createUserDocument = async (email: string, username: string, signin
 
 export async function getUserByEmail(email: string) {
   // Check cache first
-  // if (userCache.has(email)) {
-  //   return userCache.get(email);
-  // }
+  if (userCache.has(email)) {
+    return userCache.get(email);
+  }
 
   // If not in cache, fetch from Firestore
   const q = query(collection(db, "users"), where("email", "==", email.toLowerCase()));
