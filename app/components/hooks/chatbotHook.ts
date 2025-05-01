@@ -183,49 +183,55 @@ export function chatbot<msg extends MessageBase>({
         }
 
         // 3. Attempt to parse the extracted/cleaned string
-        try {
-          // Attempt parsing FIRST
-          const parsed = JSON.parse(jsonString);
+        // --- ADD THIS CHECK ---
+        if (jsonString.startsWith('{') || jsonString.startsWith('[')) {
+          // Only attempt to parse if it looks like JSON
+          try {
+            const parsed = JSON.parse(jsonString);
 
-          // Check the structure of the parsed result
-          if (typeof parsed === 'object' && parsed !== null) {
-            // A) Standard { events: [...] } format
-            if (parsed.events && Array.isArray(parsed.events)) {
-              console.log("Parsed as standard events object.");
-              return { textResponse: null, events: parsed.events, taskPlan: null };
+            // Check the structure of the parsed result
+            if (typeof parsed === 'object' && parsed !== null) {
+              // A) Standard { events: [...] } format
+              if (parsed.events && Array.isArray(parsed.events)) {
+                console.log("Parsed as standard events object.");
+                return { textResponse: null, events: parsed.events, taskPlan: null };
+              }
+              // B) Standard { taskPlan: [...] } format
+              if (parsed.taskPlan && Array.isArray(parsed.taskPlan)) {
+                console.log("Parsed as standard taskPlan object.");
+                return { textResponse: null, events: null, taskPlan: parsed.taskPlan };
+              }
             }
-            // B) Standard { taskPlan: [...] } format
-            if (parsed.taskPlan && Array.isArray(parsed.taskPlan)) {
-              console.log("Parsed as standard taskPlan object.");
-              return { textResponse: null, events: null, taskPlan: parsed.taskPlan };
+
+            // C) Direct array format [...] - assume it's events
+            if (Array.isArray(parsed)) {
+              console.log("Parsed as direct array of events.");
+              return { textResponse: null, events: parsed, taskPlan: null };
             }
-          }
 
-          // C) Direct array format [...] - assume it's events
-          if (Array.isArray(parsed)) {
-            console.log("Parsed as direct array of events.");
-            return { textResponse: null, events: parsed, taskPlan: null };
-          }
+            // D) If it parsed but didn't match known structures
+            console.warn("Parsed JSON but didn't match expected events/taskPlan/array structure:", parsed);
+            return { textResponse: "I received a structured response, but couldn't understand its format.", events: null, taskPlan: null };
 
-          // D) If it parsed but didn't match known structures
-          console.warn("Parsed JSON but didn't match expected events/taskPlan/array structure:", parsed);
-          return { textResponse: "I received a structured response, but couldn't understand its format.", events: null, taskPlan: null };
-
-        } catch (e) {
-          // JSON parsing failed OR jsonString was empty/null initially
-          if (jsonString) { // Only log error if we actually tried to parse something
-            console.error("Failed to parse potential JSON:", jsonString, e);
+          } catch (e) {
+            // JSON parsing failed
+            if (jsonString) {
+              console.error("Failed to parse potential JSON:", jsonString, e);
+            }
+            // Return a user-friendly error message if parsing fails on likely JSON
+            return { textResponse: "Sorry, I couldn't properly understand the structure of the AI's response. Please try rephrasing your request.", events: null, taskPlan: null };
           }
-          // Fallback to plain text if parsing fails
-          console.log("Treating as plain text response:", responseText);
-          const cleanedText = (responseText || '').replace(/^\s*\[AI_RESPONSE\]\s*/, '').replace(/```(?:json)?\s*([\s\S]*?)\s*```/, '$1').trim();
-          // Return cleaned text only if it's not empty, otherwise signal no action
-          if (cleanedText) {
-            return { textResponse: cleanedText, events: null, taskPlan: null };
-          } else {
-            // If original response was empty or only whitespace/code fences
-            return { textResponse: null, events: null, taskPlan: null }; // Indicate no actionable response
-          }
+        } else {
+           // --- MOVED PLAIN TEXT FALLBACK HERE ---
+           // If it doesn't start with { or [, treat as plain text directly
+           console.log("Treating as plain text response (doesn't start with { or [):", responseText);
+           const cleanedText = (responseText || '').replace(/^\s*\[AI_RESPONSE\]\s*/, '').replace(/```(?:json)?\s*([\s\S]*?)\s*```/, '$1').trim();
+           if (cleanedText) {
+             return { textResponse: cleanedText, events: null, taskPlan: null };
+           } else {
+             return { textResponse: null, events: null, taskPlan: null };
+           }
+           // --- END MOVED FALLBACK ---
         }
       };
       // --- END UPDATED processAIResponseInline ---
