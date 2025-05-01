@@ -6,6 +6,7 @@ import { auth } from 'firebaseConfig';
 import { deleteChat } from '@components/utils/chatManagement';
 import { sendPushNotification } from './notificationAPI';
 import { NotificationPreferences } from '@/app/contexts/NotificationContext';
+import { checkFriendAchievement, checkStreakAchievement, gettingStartedAchievement } from './achievementManagement';
 
 // Add a cache for user documents
 const userCache = new Map();
@@ -27,17 +28,19 @@ export const createUserDocument = async (email: string, username: string, signin
       incomingFriendRequests: [],
       outgoingFriendRequests: [],
       streak: 0,
-      lastCheckInDate: "0"
+      lastCheckInDate: "0",
+      achievements: []
     });
     console.log('User document created:', email);
+    await gettingStartedAchievement();
   }
 };
 
 export async function getUserByEmail(email: string) {
   // Check cache first
-  if (userCache.has(email)) {
-    return userCache.get(email);
-  }
+  // if (userCache.has(email)) {
+  //   return userCache.get(email);
+  // }
 
   // If not in cache, fetch from Firestore
   const q = query(collection(db, "users"), where("email", "==", email.toLowerCase()));
@@ -174,11 +177,12 @@ export const updateUserStreak = async (userEmail: string) => {
           streak: user.data().streak + 1,
           lastCheckInDate: new Date().toISOString()
         });
+        await checkStreakAchievement(user.data().streak + 1);
       }
       // else user loses their streak
       else {
         await updateDoc(doc(db, "users", userEmail), {
-          streak: 0,
+          streak: 1,
           lastCheckInDate: new Date().toISOString()
         });
       }
@@ -305,12 +309,14 @@ export const acceptFriendRequest = async (fromUserEmail: string) => {
       incomingFriendRequests: arrayRemove(sanitizedFromEmail),
       friends: arrayUnion(sanitizedFromEmail)
     });
+    await checkFriendAchievement(toUserEmail);
 
     // Remove from sender's outgoing and add to friends
     await updateDoc(doc(db, "users", sanitizedFromEmail), {
       outgoingFriendRequests: arrayRemove(toUserEmail),
       friends: arrayUnion(toUserEmail)
     });
+    await checkFriendAchievement(sanitizedFromEmail);
 
     return { success: true, error: "" };
   } catch (error: any) {
