@@ -8,8 +8,6 @@ import { sendPushNotification } from './notificationAPI';
 import { NotificationPreferences, NotificationTrigger } from '@/app/contexts/NotificationContext';
 import { checkFriendAchievement, checkStreakAchievement, gettingStartedAchievement } from './achievementManagement';
 
-// Add a cache for user documents
-const userCache = new Map();
 // Add a cache for usernames (maps from email to username) (usernameCache.get(email))
 const usernameCache = new Map<string, string>();
 
@@ -37,19 +35,11 @@ export const createUserDocument = async (email: string, username: string, signin
 };
 
 export async function getUserByEmail(email: string) {
-  // Check cache first
-  // if (userCache.has(email)) {
-  //   return userCache.get(email);
-  // }
-
-  // If not in cache, fetch from Firestore
   const q = query(collection(db, "users"), where("email", "==", email.toLowerCase()));
   const querySnapshot = await getDocs(q);
 
   if (!querySnapshot.empty) {
     const userDoc = querySnapshot.docs[0];
-    // Store in cache
-    userCache.set(email, userDoc);
     return userDoc;
   }
 
