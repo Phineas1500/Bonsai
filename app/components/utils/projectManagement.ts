@@ -4,6 +4,8 @@ import { getUserByEmail } from './userManagement';
 import axios from 'axios'; // Import axios
 import { UserInfo } from '@contexts/UserContext'; // Import UserInfo type
 import { ProjectData as FullProjectData } from './ProjectChatManagement'; // Use the more complete interface
+import { NotificationPreferences, NotificationTrigger } from '@/app/contexts/NotificationContext';
+import { sendPushNotification } from './notificationAPI';
 
 export interface ProjectMember {
   email: string;
@@ -215,6 +217,39 @@ export const rejectProjectInvite = async (projectId: string) => {
   }
 };
 
+// send push notification project invite to user with friendEmail
+const sendInviteNotification = async (friendEmail: string, projectData: Omit<ProjectData, 'id'>) => {
+  try {
+    // fetch user data for the friend
+    const friendUser = await getUserByEmail(friendEmail);
+    if (!friendUser) throw new Error("Unable to fetch user info for friend to invite to project.");
+    const friendUserInfo = friendUser.data() as UserInfo;
+    const notifPrefs = friendUserInfo.notificationPreferences as NotificationPreferences;
+    if (!notifPrefs) throw new Error("Unable to fetch notification preferences for friend");
+
+    //fetch user data for the project owner
+    const invitingUser = await getUserByEmail(projectData.creatorEmail);
+    if (!invitingUser) throw new Error("Unable to fetch user info for project creator.");
+    const invitingUserInfo = invitingUser.data() as UserInfo;
+
+    //notify that project owner has invited the friend
+    //only do so if notifications are enabled for this type of trigger 
+    if (notifPrefs.notificationsEnabled) {
+      if (notifPrefs.triggers.includes(NotificationTrigger.ProjectInvites)) {
+        sendPushNotification({
+          email: friendEmail,
+          title: 'New Project Invite',
+          body: `${invitingUserInfo.username} has invited you to join their project ${projectData.name}`,
+          data: {}
+        })
+      }
+    }
+
+  } catch (error: any) {
+    console.error("Error sending project invite notification", error);
+  }
+}
+
 export const sendProjectInvite = async (projectId: string, friendEmail: string) => {
   try {
     // get current user
@@ -255,6 +290,9 @@ export const sendProjectInvite = async (projectId: string, friendEmail: string) 
     await updateDoc(projectRef, {
       pendingInvites: arrayUnion(friendEmail.toLowerCase())
     });
+
+    // Possibly notify the friend that they've been invited to a project
+    sendInviteNotification(friendEmail, projectData);
 
     console.log(`Invite sent to ${friendEmail} for project ${projectId}`);
     return { success: true };

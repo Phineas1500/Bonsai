@@ -5,7 +5,7 @@ import { UserInfo } from '../../contexts/UserContext';
 import { auth } from 'firebaseConfig';
 import { deleteChat } from '@components/utils/chatManagement';
 import { sendPushNotification } from './notificationAPI';
-import { NotificationPreferences } from '@/app/contexts/NotificationContext';
+import { NotificationPreferences, NotificationTrigger } from '@/app/contexts/NotificationContext';
 
 // Add a cache for user documents
 const userCache = new Map();
@@ -263,7 +263,7 @@ export const sendFriendRequest = async (toUserEmail: string) => {
       return { success: true, error: "" };
     }
     if (notifPrefs.notificationsEnabled) {
-      if (notifPrefs.triggers.includes("friend-requests")) {
+      if (notifPrefs.triggers.includes(NotificationTrigger.FriendRequests)) {
         // Send incoming friend request notification to recipient's device
         sendPushNotification({
           email: sanitizedToEmail,

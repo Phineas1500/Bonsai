@@ -27,12 +27,18 @@ export interface TaskNotification {
   triggerTime: string; //ISO string
 }
 
+export enum NotificationTrigger {
+  FriendRequests = 'friend-requests',
+  Tasks = 'tasks',
+  ProjectInvites = 'project-invites',
+}
+
 //have to make sure to keep this synced with the shape of user info
 export interface NotificationPreferences {
   notificationsEnabled: boolean;
   reminderOffsets: number[];
   priorityNotificationsEnabled: boolean; // New toggle for priority-based notifications
-  triggers: string[]; //possible values are: friend-requests, tasks
+  triggers: NotificationTrigger[]; //possible values are: friend-requests, tasks, project-invites
   hasBeenPrompted?: boolean;
 }
 
@@ -56,7 +62,7 @@ export function NotificationProvider({ children }: { children: React.ReactNode})
       notificationsEnabled: false,
       reminderOffsets: [0],
       priorityNotificationsEnabled: false, // Default to disabled
-      triggers: ["tasks"],
+      triggers: [NotificationTrigger.Tasks],
       hasBeenPrompted: false
     }
 
@@ -131,7 +137,7 @@ export function NotificationProvider({ children }: { children: React.ReactNode})
 
         const userInfoSnap: UserInfo = userDoc.data() as UserInfo;
         const preferences = userInfoSnap.notificationPreferences;
-        console.log("user preferences: ", preferences);
+        //console.log("user preferences: ", preferences);
         if (preferences) {
           //update local user info context using the entire preferences object
           updateUserInfo({
@@ -212,7 +218,7 @@ export function NotificationProvider({ children }: { children: React.ReactNode})
       }
 
       //if the user shouldn't be notified of tasks, then don't do it
-      if (!notificationPreferences.triggers.includes("tasks")) {
+      if (!notificationPreferences.triggers.includes(NotificationTrigger.Tasks)) {
         console.log("User doesn't want to be notified about tasks");
         return;
       }

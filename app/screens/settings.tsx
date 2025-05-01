@@ -4,7 +4,7 @@ import * as AuthSession from 'expo-auth-session';
 import * as Google from 'expo-auth-session/providers/google';
 import { useUser } from '@contexts/UserContext';
 import React from 'react';
-import { NotificationPreferences, useNotification } from '../contexts/NotificationContext';
+import { NotificationPreferences, NotificationTrigger, useNotification } from '../contexts/NotificationContext';
 import { NotificationPayload, sendPushNotification } from '../components/utils/notificationAPI';
 import { router } from 'expo-router';
 import { auth } from '@/firebaseConfig';
@@ -121,11 +121,12 @@ export default function Settings() {
     const currentTriggers = notificationPreferences.triggers;
 
     const triggerOptions = [
-        { label: "Tasks", value: "tasks"},
-        { label: "Friend Requests", value: "friend-requests" }
+        { label: "Tasks", value: NotificationTrigger.Tasks},
+        { label: "Friend Requests", value: NotificationTrigger.FriendRequests },
+        { label: "Project Invites", value: NotificationTrigger.ProjectInvites },
     ]
 
-    const toggleTrigger = (trigger: string) => {
+    const toggleTrigger = (trigger: NotificationTrigger) => {
         if (!userInfo?.email) {
             console.error("Unable to get user info");
             return;
