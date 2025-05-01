@@ -24,6 +24,7 @@ export interface UserInfo {
     outgoingFriendRequests?: string[];
     streak?: number;
     lastCheckInDate?: string;
+    achievements?: string[];
 };
 
 // Define the type for context

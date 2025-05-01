@@ -49,6 +49,7 @@ export default function Welcome() {
         outgoingFriendRequests: userData.outgoingFriendRequests ?? [],
         streak: userData.streak ?? 0,
         lastCheckInDate: userData.lastCheckInDate ?? "0",
+        achievements: userData.achievements ?? [],
       });
 
       // Start confetti animation after a small delay

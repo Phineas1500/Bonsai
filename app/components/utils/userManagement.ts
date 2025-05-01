@@ -27,7 +27,8 @@ export const createUserDocument = async (email: string, username: string, signin
       incomingFriendRequests: [],
       outgoingFriendRequests: [],
       streak: 0,
-      lastCheckInDate: "0"
+      lastCheckInDate: "0",
+      achievements: []
     });
     console.log('User document created:', email);
   }
@@ -178,7 +179,7 @@ export const updateUserStreak = async (userEmail: string) => {
       // else user loses their streak
       else {
         await updateDoc(doc(db, "users", userEmail), {
-          streak: 0,
+          streak: 1,
           lastCheckInDate: new Date().toISOString()
         });
       }
