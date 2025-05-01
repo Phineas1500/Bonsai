@@ -28,9 +28,11 @@ export const getAchievementDetails = async (email: string, achievements: string[
       achievements = [newAchievement];
     }
 
-    const achievementDetails = achievements.map((name: any) => ({
-      ...listOfAchievements[name]
-    }));
+    const achievementDetails = achievements
+      .filter((name: any) => listOfAchievements[name]) // only keep valid names
+      .map((name: any) => ({
+        ...listOfAchievements[name]
+      }));
     const list = achievementDetails.toReversed();
 
     return list;
