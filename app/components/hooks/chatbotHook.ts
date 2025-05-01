@@ -5,7 +5,7 @@ import { Timestamp } from 'firebase/firestore';
 
 import { useUser } from '@contexts/UserContext';
 import AIService from '@contexts/AIService';
-import { TaskItemData } from '@contexts/TasksContext'; // Import TaskItemData instead of Task
+import { TaskItemData, useTasks } from '@contexts/TasksContext'; // Import TaskItemData instead of Task
 import { getProjectById } from '../utils/projectManagement'; // Import the new function
 
 interface MessageBase {
@@ -40,6 +40,8 @@ export function chatbot<msg extends MessageBase>({
   projectId // Destructure projectId
 }: chatbotProps<msg>) {
   const { userInfo } = useUser();
+  const { bonsaiCalendarID } = useTasks();
+
   const [isProcessing, setIsProcessing] = useState(false);
   const [pendingEvents, setPendingEvents] = useState<any[]>([]);
   const [currentEventIndex, setCurrentEventIndex] = useState(0);
@@ -65,7 +67,14 @@ export function chatbot<msg extends MessageBase>({
   };
 
   // Add event to calendar (now accepts calendarId)
-  const addToCalendar = useCallback(async (eventDetails: any, calendarId: string = 'primary') => {
+  const addToCalendar = useCallback(async (eventDetails: any, givenCalendarId: string = 'primary') => {
+    
+    // If the calendarId is primary, use the default Bonsai calendar instead 
+    let calendarId = givenCalendarId;
+    if (calendarId == 'primary') {
+      calendarId = bonsaiCalendarID || 'primary';
+    }
+
     try {
       if (!userInfo?.calendarAuth?.access_token) {
         return "I need access to your Google Calendar to add events. Please sign in with Google first.";
