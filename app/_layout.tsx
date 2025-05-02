@@ -42,6 +42,7 @@ function AppContent() {
     '/screens/signin',
     '/screens/signup',
     '/screens/authcallback',
+    '/screens/mfaRedirect',
   ];
 
   // Request notification permissions when user logs in

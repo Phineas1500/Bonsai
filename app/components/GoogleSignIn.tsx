@@ -5,11 +5,12 @@ import { useEffect } from 'react';
 import { useRouter } from 'expo-router';
 import GradientButton from './GradientButton';
 import * as AuthSession from 'expo-auth-session';
-import { auth } from 'firebaseConfig';
+import { auth, db } from 'firebaseConfig';
 import { GoogleAuthProvider, signInWithCredential, updateProfile } from 'firebase/auth';
 
 import { useUser } from '@contexts/UserContext';
-import { createUserDocument, getUserByUsername, validateSignInMethod } from '@components/utils/userManagement';
+import { fetchUserMFA, createUserDocument, getUserByUsername, validateSignInMethod } from '@components/utils/userManagement';
+import { doc } from 'firebase/firestore';
 
 WebBrowser.maybeCompleteAuthSession();
 
@@ -108,7 +109,15 @@ export default function GoogleSignIn() {
               id_token: response.authentication?.idToken || undefined
             });
 
-            router.push('/screens/authcallback');
+            //check phone number for this user
+            const useMFA = await fetchUserMFA(result.user.email, updateUserInfo);
+            
+            if (useMFA) {
+              router.push('/screens/mfaRedirect');
+            } else {
+              router.push('/screens/authcallback');
+            }
+            
           })
           .catch((error) => {
             // console.error('Firebase sign-in error:', error);

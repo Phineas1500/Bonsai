@@ -1,4 +1,4 @@
-import { View, Text, Button, TouchableOpacity, Alert, Switch } from 'react-native';
+import { View, Text, Button, TouchableOpacity, Alert, Switch, TextInput} from 'react-native';
 import { useEffect, useState } from 'react';
 import * as AuthSession from 'expo-auth-session';
 import * as Google from 'expo-auth-session/providers/google';
@@ -8,7 +8,7 @@ import { NotificationPreferences, NotificationTrigger, useNotification } from '.
 
 import { router } from 'expo-router';
 import { auth, db } from '@/firebaseConfig';
-import { signOut } from 'firebase/auth';
+import { signOut, updatePhoneNumber } from 'firebase/auth';
 import { doc, updateDoc } from 'firebase/firestore';
 
 import ChangeUsernameModal from '@components/ChangeUsernameModal';
@@ -25,6 +25,7 @@ export default function Settings() {
     const { userInfo, setUserInfo, updateUserInfo } = useUser();
     const [changeUsernamePrompt, setChangeUsernamePrompt] = useState(false);
     const [deleteAccountPrompt, setDeleteAccountPrompt] = useState(false);
+    const [phoneNumber, setPhoneNumber] = useState("");
 
     const redirectUri = AuthSession.makeRedirectUri({
         path: '/screens/settings'
@@ -103,15 +104,13 @@ export default function Settings() {
     };
 
     //handle toggling notifications
-    const switchEnabled = notificationPreferences.notificationsEnabled;
-
     const toggleNotifications = async () => {
         if (!userInfo?.email) {
             console.error("User email isn't available");
             return;
         }
 
-        const newVal: boolean = !switchEnabled;
+        const newVal: boolean = !notificationPreferences.notificationsEnabled;
 
         //if enabling notifications, request that
         if (newVal) {
@@ -202,7 +201,57 @@ export default function Settings() {
         }
     };
 
+    const updatePhoneNumber = async () => {
+        try {   
+            //validate 
+            if (phoneNumber.length == 0) return;
+            if (phoneNumber.length != 10) {
+                alert("Phone number must have 10 digits!");
+                return;
+            }
 
+            //set new phone number
+            if (!userInfo) {
+                console.error("user info undefined in settings");
+                return;
+            }
+
+            await updateDoc(doc(db, "users", userInfo.email), {
+                phoneNumber: "+1" + phoneNumber
+            });
+            updateUserInfo({
+                phoneNumber: "+1" + phoneNumber
+            })
+
+        } catch (error: any) {
+            console.error(error);
+        }
+    }
+
+    const toggle2FA = async () => {
+        if (!userInfo) {
+            console.error("User isn't avaialble in settings");
+            return;
+        }
+        if (!userInfo.phoneNumber) {
+            alert("Must first set phone number before you can enable 2FA");
+            return;
+        }
+
+        try {
+            const currVal = userInfo.uses2FA ?? false;
+            const newVal = !currVal;
+
+            await updateDoc(doc(db, "users", userInfo.email), {
+                uses2FA: newVal
+            });
+            updateUserInfo({
+                uses2FA: newVal
+            });
+        } catch (error: any) {
+            console.error(error);
+        }
+    }
 
     return (
         <>
@@ -239,6 +288,35 @@ export default function Settings() {
                         />
                     </View>
 
+                    {/* 2fa settings */}
+                    <View className="w-full mb-6">
+                        <Text className="text-white text-lg border-b border-gray-800 py-3 ">Two-Factor Authentication</Text>
+                        <Text className="text-white">Current phone number: {userInfo?.phoneNumber || ''}</Text>
+                        <TextInput
+                            placeholder="Phone Number"
+                            className="bg-gray-300 text-gray-600 w-full rounded-xl py-3 px-3"
+                            editable={true}
+                            value={phoneNumber}
+                            onChangeText={setPhoneNumber}
+                        />
+                        <Button
+                            title="Set Phone Number"
+                            onPress={updatePhoneNumber}
+                        />
+
+                        <View className="flex-row items-center justify-between mb-4 border-b border-gray-800 py-3">
+                            <Text className="text-white text-sm font-thin ">2FA Enabled:</Text>
+                            <Switch
+                                trackColor={{ false: "#ccc", true: "#81b0ff" }}
+                                thumbColor={userInfo?.uses2FA ? "#007aff" : "#f4f3f4"}
+                                ios_backgroundColor="#ccc"
+                                onValueChange={toggle2FA}
+                                value={userInfo?.uses2FA ?? false}
+                            />
+                        </View>
+                        
+                    </View>
+
                     <View className="w-full mb-6">
                         <Text className="text-white text-lg border-b border-gray-800 py-3 ">Notifications</Text>
                         {/* Notifications toggle */}
@@ -246,10 +324,10 @@ export default function Settings() {
                             <Text className="text-white text-sm font-thin ">Notifications enabled:</Text>
                             <Switch
                                 trackColor={{ false: "#ccc", true: "#81b0ff" }}
-                                thumbColor={switchEnabled ? "#007aff" : "#f4f3f4"}
+                                thumbColor={notificationPreferences.notificationsEnabled ? "#007aff" : "#f4f3f4"}
                                 ios_backgroundColor="#ccc"
                                 onValueChange={toggleNotifications}
-                                value={switchEnabled}
+                                value={notificationPreferences.notificationsEnabled}
                             />
 
                         </View>

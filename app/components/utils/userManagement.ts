@@ -585,3 +585,36 @@ export const getUsernameFromEmail = async (email: string): Promise<string> => {
     return "";
   }
 };
+
+export const fetchUserMFA = async (email: string, updateUserInfo: Function): Promise<boolean> => {
+  
+  try {
+    const docRef = doc(db, 'users', email);
+    const docSnap = await getDoc(docRef);
+
+    if (docSnap.exists()) {
+      const userInfo = docSnap.data();
+
+      const phoneNumber = userInfo.phoneNumber;
+      const uses2FA = userInfo.uses2FA;
+
+      updateUserInfo({
+        phoneNumber: phoneNumber,
+        uses2FA: uses2FA
+      })
+      
+      if (!uses2FA || uses2FA === undefined) {
+        return false;
+      }
+      if (phoneNumber === undefined || phoneNumber === '') {
+        return false;
+      }
+      return true;
+    }
+    return false;
+
+  } catch (error: any) {
+    console.warn(error);
+    return false;
+  }
+}

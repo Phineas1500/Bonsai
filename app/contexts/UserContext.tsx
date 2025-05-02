@@ -27,6 +27,8 @@ export interface UserInfo {
     streak?: number;
     lastCheckInDate?: string;
     achievements?: string[];
+    phoneNumber? : string;
+    uses2FA : boolean | undefined;
 };
 
 // Define the type for context
