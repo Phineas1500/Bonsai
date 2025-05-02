@@ -89,10 +89,12 @@ const TaskPlanConfirmationModal = ({
                   ) : task.endTime ? (
                     <Text className="text-gray-400 text-xs">Due: {formatDate(task.endTime)}</Text>
                   ) : null}
-                  {task.assignedTo && (
+
+                  {task.assignedTo ? (
                     <Text className="text-teal-400 text-xs mt-1">Assigned to: {task.assignedTo}</Text>
-                  )}
-                  {task.priority !== undefined && (
+                  ) : null}
+
+                  {task.priority !== undefined ? (
                     <View className="flex-row items-center mt-1">
                       <Text className="text-gray-400 text-xs mr-1">Priority:</Text>
                       <Text className={`text-xs ${
@@ -103,7 +105,7 @@ const TaskPlanConfirmationModal = ({
                         {task.priority}/10
                       </Text>
                     </View>
-                  )}
+                  ) : null}
                 </View>
               ))}
             </ScrollView>

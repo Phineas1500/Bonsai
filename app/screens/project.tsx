@@ -45,7 +45,7 @@ export default function ProjectScreen() {
   const { userInfo } = useUser();
   const currentUserEmail = auth.currentUser?.email || '';
   const scrollViewRef = useRef<ScrollView>(null);
-  const { tasks, refreshTasks } = useTasks();
+  const { tasks, refreshTasks, addTask } = useTasks();
 
   // Use the project chat hook for project-specific database operations
   const {
@@ -175,6 +175,7 @@ export default function ProjectScreen() {
     sendMessage: dbSendMessage,
     tasks,
     refreshTasks,
+    addTask, // Pass addTask here
     isProjectChat: true,
     createMessage: createProjectMessage,
     projectId: projectId // Pass the projectId

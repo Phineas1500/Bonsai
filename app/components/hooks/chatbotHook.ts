@@ -23,6 +23,7 @@ interface chatbotProps<msg extends MessageBase> {
   sendMessage: (chatId: string, message: msg) => Promise<void>;
   tasks: TaskItemData[]; // Use TaskItemData
   refreshTasks: () => Promise<void>;
+  addTask: (task: TaskItemData) => Promise<boolean>; // Add this line
   isProjectChat?: boolean;
   createMessage: (text: string, sender: string) => msg;
   projectId?: string; // Add optional projectId
@@ -35,6 +36,7 @@ export function chatbot<msg extends MessageBase>({
   sendMessage,
   tasks, // This is now TaskItemData[]
   refreshTasks,
+  addTask, // Add addTask here
   isProjectChat = false,
   createMessage,
   projectId // Destructure projectId
@@ -279,102 +281,131 @@ export function chatbot<msg extends MessageBase>({
     if (!chatId || pendingEvents.length === 0 || currentEventIndex >= pendingEvents.length) return;
 
     setIsProcessing(true);
-    const currentEvent = { ...pendingEvents[currentEventIndex] }; // Clone event to modify
-    const assignedUser = currentEvent.assignedTo; // This could be username or email
-    const currentUserIdentifier = userInfo?.username || userInfo?.email; // Use username first, fallback to email
+    const currentItem = { ...pendingEvents[currentEventIndex] }; // Clone item
+    const isTaskItem = currentItem.isTask || currentItem.isTaskPlanEvent; // Check if it's a task
+
+    const assignedUser = currentItem.assignedTo;
+    const currentUserIdentifier = userInfo?.username || userInfo?.email;
 
     let responseText = '';
     let projectData = null;
     let sharedCalendarId: string | undefined | null = null;
 
-    // Fetch project data if in project chat and projectId is available
     if (isProjectChat && projectId) {
       projectData = await getProjectById(projectId);
       sharedCalendarId = projectData?.sharedCalendarId;
       console.log(`Project Chat: Fetched project ${projectId}, Shared Calendar ID: ${sharedCalendarId}`);
     }
 
-    // Determine if the event is assigned to the *current* logged-in user
     const isAssignedToCurrentUser = assignedUser && currentUserIdentifier &&
                                     (assignedUser.toLowerCase() === currentUserIdentifier.toLowerCase() ||
                                      (userInfo?.email && assignedUser.toLowerCase() === userInfo.email.toLowerCase()));
 
-    console.log(`Event: "${currentEvent.title}", AssignedTo: ${assignedUser}, CurrentUser: ${currentUserIdentifier}, IsAssignedToCurrentUser: ${isAssignedToCurrentUser}`);
+    console.log(`Confirming Item: "${currentItem.title}", IsTask: ${isTaskItem}, AssignedTo: ${assignedUser}, CurrentUser: ${currentUserIdentifier}, IsAssignedToCurrentUser: ${isAssignedToCurrentUser}`);
 
-    if (isAssignedToCurrentUser) {
-      // --- Assigned to current user ---
-      if (isProjectChat && sharedCalendarId) {
-        // Project chat with a shared calendar: Add to shared calendar
-        console.log(`Adding event for current user to SHARED calendar: ${sharedCalendarId}`);
-        // Modify summary to show assignment clearly in the shared calendar
-        currentEvent.summary = `${currentEvent.title} (Assigned: ${userInfo?.username || assignedUser})`;
-        responseText = await addToCalendar(currentEvent, sharedCalendarId);
-        // Adjust confirmation message for project calendar
-        if (responseText.startsWith("I've added")) {
-           responseText = `Task "${currentEvent.title}" assigned to you. ${responseText.replace("your calendar", `the project calendar (${projectData?.name})`)}`;
+    // --- MODIFICATION START: Handle Task vs Event ---
+    if (isTaskItem) {
+      // --- Handle adding as a TASK ---
+      console.log("Attempting to add as a Task...");
+      // Prepare TaskItemData object
+      const taskData: TaskItemData = {
+        id: '', // ID will be assigned by Google Tasks API upon creation
+        title: currentItem.title,
+        description: currentItem.description || "",
+        startTime: ensureCorrectTimezone(currentItem.startTime), // Keep start time for context
+        endTime: ensureCorrectTimezone(currentItem.endTime), // End time used as Due Date for Google Tasks
+        priority: currentItem.priority || 5,
+        isTask: true,
+        // location is not typically used for tasks
+      };
+
+      // Note: Google Tasks API via TasksContext doesn't currently support assigning tasks.
+      // We only add tasks for the current user.
+      if (isAssignedToCurrentUser || !assignedUser) { // Add if assigned to current user or unassigned
+        const success = await addTask(taskData);
+        if (success) {
+          responseText = `Okay, I've added the task "${taskData.title}" to your list.`;
+          if (isProjectChat) {
+             responseText += ` (Due: ${new Date(taskData.endTime).toLocaleDateString()})`;
+          }
         } else {
-           // Provide specific feedback if adding to shared calendar failed
-           responseText = `Task "${currentEvent.title}" assigned to you. (Could not add to project calendar: ${responseText})`;
+          responseText = `Sorry, I couldn't add the task "${taskData.title}" to your list.`;
         }
       } else {
-        // Personal chat OR project chat without shared calendar: Add to primary
-        console.log(`Adding event for current user to PRIMARY calendar`);
-        responseText = await addToCalendar(currentEvent); // Uses 'primary' by default
-        // Adjust confirmation message based on success/failure and context
-        if (responseText.startsWith("I couldn't add") || responseText.startsWith("I need access")) {
-           responseText = `Confirmed: "${currentEvent.title}" assigned to you. (Could not add to your primary calendar: ${responseText})`;
-        } else if (isProjectChat) {
-           // Success in project chat (added to primary)
-           responseText = `Task "${currentEvent.title}" assigned to you. ${responseText.replace("your calendar", "your primary calendar")}`;
-        } else {
-           // Success in personal chat (added to primary) - keep original message like "I've added... to your calendar"
-           // responseText remains unchanged
-        }
+        // Task assigned to someone else - cannot add via current Google Tasks setup
+        responseText = `Task "${currentItem.title}" is noted and assigned to ${assignedUser}. (Cannot automatically add to their task list).`;
+        console.log(`Task assigned to OTHER user (${assignedUser}). Not adding to Google Tasks.`);
       }
-    } else if (assignedUser) {
-      // --- Assigned to someone else ---
-      responseText = `Task "${currentEvent.title}" assigned to ${assignedUser}.`;
-      // If project chat and shared calendar exists, add it anyway but mention assignment
-      if (isProjectChat && sharedCalendarId) {
-         console.log(`Adding event assigned to OTHER user (${assignedUser}) to SHARED calendar: ${sharedCalendarId}`);
-         currentEvent.summary = `${currentEvent.title} (Assigned: ${assignedUser})`;
-         // Add to shared calendar without specific confirmation *for the assignee* in this message
-         const sharedCalResponse = await addToCalendar(currentEvent, sharedCalendarId);
-         if (sharedCalResponse.startsWith("I've added")) {
-            responseText += ` Added to project calendar (${projectData?.name}).`;
-         } else {
-            responseText += ` (Could not add to project calendar: ${sharedCalResponse})`;
-         }
-      } else {
-         console.log(`Event assigned to OTHER user (${assignedUser}), no shared calendar or not project chat. Not adding to any calendar.`);
-      }
-      // Do not attempt to add to the other user's primary calendar
+
     } else {
-      // --- Not assigned to anyone specific ---
-      if (isProjectChat && sharedCalendarId) {
-         // Project chat with shared calendar - add unassigned task
-         console.log(`Adding UNASSIGNED event to SHARED calendar: ${sharedCalendarId}`);
-         responseText = await addToCalendar(currentEvent, sharedCalendarId);
-         if (responseText.startsWith("I've added")) {
-            responseText = `Added unassigned task "${currentEvent.title}" to the project calendar (${projectData?.name}).`;
-         } else {
-            responseText = `Added unassigned task "${currentEvent.title}" to the project plan. (Could not add to project calendar: ${responseText})`;
-         }
-      } else if (!isProjectChat) {
-         // Personal chat - add unassigned task to primary
-         console.log(`Adding UNASSIGNED event to PRIMARY calendar`);
-         responseText = await addToCalendar(currentEvent);
-         // Keep original confirmation message
+      // --- Handle adding as an EVENT (Existing Logic) ---
+      console.log("Attempting to add as a Calendar Event...");
+      const currentEvent = currentItem; // Use currentItem as eventDetails
+
+      if (isAssignedToCurrentUser) {
+        // Assigned to current user
+        if (isProjectChat && sharedCalendarId) {
+          // Project chat with shared calendar
+          console.log(`Adding event for current user to SHARED calendar: ${sharedCalendarId}`);
+          currentEvent.summary = `${currentEvent.title} (Assigned: ${userInfo?.username || assignedUser})`;
+          responseText = await addToCalendar(currentEvent, sharedCalendarId);
+          if (responseText.startsWith("I've added")) {
+             responseText = `Task "${currentEvent.title}" assigned to you. ${responseText.replace("your calendar", `the project calendar (${projectData?.name})`)}`;
+          } else {
+             responseText = `Task "${currentEvent.title}" assigned to you. (Could not add to project calendar: ${responseText})`;
+          }
+        } else {
+          // Personal chat OR project chat without shared calendar
+          console.log(`Adding event for current user to PRIMARY calendar`);
+          responseText = await addToCalendar(currentEvent);
+          if (responseText.startsWith("I couldn't add") || responseText.startsWith("I need access")) {
+             responseText = `Confirmed: "${currentEvent.title}" assigned to you. (Could not add to your primary calendar: ${responseText})`;
+          } else if (isProjectChat) {
+             responseText = `Task "${currentEvent.title}" assigned to you. ${responseText.replace("your calendar", "your primary calendar")}`;
+          } // else personal chat success - keep original message
+        }
+      } else if (assignedUser) {
+        // Assigned to someone else
+        responseText = `Task "${currentEvent.title}" assigned to ${assignedUser}.`;
+        if (isProjectChat && sharedCalendarId) {
+           console.log(`Adding event assigned to OTHER user (${assignedUser}) to SHARED calendar: ${sharedCalendarId}`);
+           currentEvent.summary = `${currentEvent.title} (Assigned: ${assignedUser})`;
+           const sharedCalResponse = await addToCalendar(currentEvent, sharedCalendarId);
+           if (sharedCalResponse.startsWith("I've added")) {
+              responseText += ` Added to project calendar (${projectData?.name}).`;
+           } else {
+              responseText += ` (Could not add to project calendar: ${sharedCalResponse})`;
+           }
+        } else {
+           console.log(`Event assigned to OTHER user (${assignedUser}), no shared calendar or not project chat. Not adding to any calendar.`);
+        }
       } else {
-         // Project chat without shared calendar - just confirm it's noted
-         console.log(`UNASSIGNED event in project chat without shared calendar. Not adding to any calendar.`);
-         responseText = `Added unassigned task "${currentEvent.title}" to the project plan/schedule.`;
+        // Not assigned to anyone specific
+        if (isProjectChat && sharedCalendarId) {
+           // Project chat with shared calendar
+           console.log(`Adding UNASSIGNED event to SHARED calendar: ${sharedCalendarId}`);
+           responseText = await addToCalendar(currentEvent, sharedCalendarId);
+           if (responseText.startsWith("I've added")) {
+              responseText = `Added unassigned task "${currentEvent.title}" to the project calendar (${projectData?.name}).`;
+           } else {
+              responseText = `Added unassigned task "${currentEvent.title}" to the project plan. (Could not add to project calendar: ${responseText})`;
+           }
+        } else if (!isProjectChat) {
+           // Personal chat
+           console.log(`Adding UNASSIGNED event to PRIMARY calendar`);
+           responseText = await addToCalendar(currentEvent);
+        } else {
+           // Project chat without shared calendar
+           console.log(`UNASSIGNED event in project chat without shared calendar. Not adding to any calendar.`);
+           responseText = `Added unassigned task "${currentEvent.title}" to the project plan/schedule.`;
+        }
       }
     }
+    // --- MODIFICATION END ---
 
     // Add bot response message
     const botMessage = createMessage(responseText, 'bot');
-
+    // ... rest of the function remains the same (sending message, moving to next item, refreshing tasks) ...
     try {
       await sendMessage(chatId, botMessage);
       setMessages(prev => [...prev, botMessage]);
@@ -393,13 +424,12 @@ export function chatbot<msg extends MessageBase>({
       setPendingEvents([]);
       setCurrentEventIndex(0);
       // Refresh tasks *after* all events are processed
-      console.log("All events processed, refreshing tasks...");
+      console.log("All items processed, refreshing tasks...");
       refreshTasks();
       setIsProcessing(false); // Final processing finished
     }
 
-  }, [chatId, projectId, isProjectChat, pendingEvents, currentEventIndex, userInfo, addToCalendar, sendMessage, setMessages, createMessage, refreshTasks]);
-
+  }, [chatId, projectId, isProjectChat, pendingEvents, currentEventIndex, userInfo, addToCalendar, addTask, sendMessage, setMessages, createMessage, refreshTasks]); // Added addTask to dependencies
 
   // Handle event cancellation
   const handleCancelEvent = useCallback(async () => {
@@ -437,13 +467,24 @@ export function chatbot<msg extends MessageBase>({
     setShowTaskPlanConfirmation(false); // Close confirmation modal
 
     // Convert task plan items to event-like objects for potential calendar adding
-    const eventsFromPlan = taskPlanData.map((task: any) => ({
+    // --- MODIFICATION START ---
+    const tasksFromPlan = taskPlanData.map((task: any) => ({
       ...task,
-      isTaskPlanEvent: true // Mark these as originating from a task plan
+      isTaskPlanEvent: true, // Mark these as originating from a task plan
+      isTask: true, // <<< Mark as a task for TasksContext
+      // Ensure required TaskItemData fields are present, provide defaults if necessary
+      title: task.title || "Untitled Task",
+      description: task.description || "",
+      startTime: task.startTime || new Date().toISOString(), // Default start time if missing
+      endTime: task.endTime || new Date(Date.now() + 3600 * 1000).toISOString(), // Default end time if missing
+      priority: task.priority || 5, // Default priority
+      // location is optional
+      // assignedTo is handled separately if needed
     }));
+    // --- MODIFICATION END ---
 
     // Set these as pending events to go through the confirmation flow
-    setPendingEvents(eventsFromPlan);
+    setPendingEvents(tasksFromPlan); // Now contains task objects
     setCurrentEventIndex(0);
     setShowEventConfirmation(true); // Show event confirmation for the first task in the plan
 
