@@ -76,8 +76,15 @@ export function chatbot<msg extends MessageBase>({
     } else {
       // If it's not primary, then it's a shared calendar, so add project name to title
       //assuming that project name will always come after colon in description
-      const projectName = eventDetails.description.split(':')[1].trim();
-      eventDetails.title = projectName + " : " + eventDetails.title;
+      console.log("description:", eventDetails.description);
+      if (typeof eventDetails.description === 'string' && eventDetails.description.includes(':')) {
+        const parts = eventDetails.description.split(':');
+        if (parts[1]) {
+          const projectName = parts[1].trim();
+          eventDetails.title = projectName + " : " + eventDetails.title;
+        }
+      }
+
     }
 
     try {
@@ -115,7 +122,8 @@ export function chatbot<msg extends MessageBase>({
           headers: {
             Authorization: `Bearer ${userInfo.calendarAuth.access_token}`,
             'Content-Type': 'application/json'
-          }
+          },
+          timeout: 10000
         }
       );
 
