@@ -73,6 +73,11 @@ export function chatbot<msg extends MessageBase>({
     let calendarId = givenCalendarId;
     if (calendarId == 'primary') {
       calendarId = bonsaiCalendarID || 'primary';
+    } else {
+      // If it's not primary, then it's a shared calendar, so add project name to title
+      //assuming that project name will always come after colon in description
+      const projectName = eventDetails.description.split(':')[1].trim();
+      eventDetails.title = projectName + " : " + eventDetails.title;
     }
 
     try {
