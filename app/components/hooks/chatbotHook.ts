@@ -381,6 +381,8 @@ export function chatbot<msg extends MessageBase>({
         console.log(`Adding event for current user to SHARED calendar: ${sharedCalendarId}`);
         // Modify summary to show assignment clearly in the shared calendar
         currentEvent.summary = `${currentEvent.title} (Assigned: ${userInfo?.username || assignedUser})`;
+        const projectName = projectData?.name || 'Project';
+        currentEvent.title = `${projectName} - ${currentEvent.title}`;
         responseText = await addToCalendar(currentEvent, sharedCalendarId);
         // Adjust confirmation message for project calendar
         if (responseText.startsWith("I've added")) {
@@ -412,6 +414,8 @@ export function chatbot<msg extends MessageBase>({
          console.log(`Adding event assigned to OTHER user (${assignedUser}) to SHARED calendar: ${sharedCalendarId}`);
          currentEvent.summary = `${currentEvent.title} (Assigned: ${assignedUser})`;
          // Add to shared calendar without specific confirmation *for the assignee* in this message
+         const projectName = projectData?.name || 'Project';
+         currentEvent.title = `${projectName} - ${currentEvent.title}`;
          const sharedCalResponse = await addToCalendar(currentEvent, sharedCalendarId);
          if (sharedCalResponse.startsWith("I've added")) {
             responseText += ` Added to project calendar (${projectData?.name}).`;
@@ -427,6 +431,8 @@ export function chatbot<msg extends MessageBase>({
       if (isProjectChat && sharedCalendarId) {
          // Project chat with shared calendar - add unassigned task
          console.log(`Adding UNASSIGNED event to SHARED calendar: ${sharedCalendarId}`);
+         const projectName = projectData?.name || 'Project';
+         currentEvent.title = `${projectName} - ${currentEvent.title}`;
          responseText = await addToCalendar(currentEvent, sharedCalendarId);
          if (responseText.startsWith("I've added")) {
             responseText = `Added unassigned task "${currentEvent.title}" to the project calendar (${projectData?.name}).`;
