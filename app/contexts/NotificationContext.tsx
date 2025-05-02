@@ -283,8 +283,29 @@ export function NotificationProvider({ children }: { children: React.ReactNode})
           if (!notification.triggerTime) return;
           const originalTime = new Date(notification.triggerTime);
 
-          // subtract offset in milliseconds
-          const newTime = new Date(originalTime.getTime() - minuteOffset * 60 * 1000);
+          let newTime: Date;
+
+          // halfway (minute offset of -1)
+          if (minuteOffset === -1) {
+            const dueDate = notification.data?.endTime || notification.data?.dueDate;
+            if (!dueDate) {
+              console.log("skipping halfway notif for event");
+              return;
+            }
+
+            const now = new Date();
+            const taskDueDate = new Date(dueDate);
+            const halfwayMS = now.getTime() + (taskDueDate.getTime() - now.getTime()) / 2;
+            newTime = new Date(halfwayMS);
+            // console.log("Halfway notification time: ", newTime.toISOString());
+
+            if (halfwayMS <= now.getTime() + 24 * 60 * 60 * 1000) {
+              console.log("halfway is less than 1 day away, skipping notif");
+              return;
+            }
+          } else {
+            newTime = new Date(originalTime.getTime() - minuteOffset * 60 * 1000);
+          }
 
           const newNotif: NotificationPayload = {
             email: notification.email,
