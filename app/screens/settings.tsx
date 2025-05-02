@@ -10,11 +10,14 @@ import { scheduleLocalNotification, NotificationPayload } from '@components/util
 import { router } from 'expo-router';
 import { auth, db } from '@/firebaseConfig';
 import { signOut, updatePhoneNumber } from 'firebase/auth';
-import { doc, updateDoc } from 'firebase/firestore';
+import { doc, updateDoc, Timestamp } from 'firebase/firestore';
 
 import ChangeUsernameModal from '@components/ChangeUsernameModal';
 import DeleteAccountModal from '@components/DeleteAccountModal';
 import { ScrollView } from 'react-native-gesture-handler';
+
+import { getUserChats, sendMessage } from '@components/utils/chatManagement';
+import { Message } from '@components/chat';
 
 
 export interface AdditionalSettings {
@@ -202,8 +205,8 @@ export default function Settings() {
     };
 
     const updatePhoneNumber = async () => {
-        try {   
-            //validate 
+        try {
+            //validate
             if (phoneNumber.length == 0) return;
             if (phoneNumber.length != 10) {
                 alert("Phone number must have 10 digits!");
@@ -273,6 +276,28 @@ export default function Settings() {
             }
         };
 
+        // send checking message from bot's perspective
+        const checkInMessage: Message = {
+            id: Math.random().toString(36).substring(2, 15),
+            text: "How are your tasks going? Any new updates or challenges?",
+            sender: "bot",
+            senderUsername: "Bonsai",
+            timestamp: Timestamp.fromDate(new Date()),
+        };
+
+        getUserChats(userInfo.email).then(chats => {
+            const id = chats[0]?.id;
+            sendMessage(id, checkInMessage).then(() => {
+                console.log("CHECK IN MESSAGE SENT");
+            }
+            ).catch(error => {
+                console.error("Error sending check-in message:", error);
+            });
+        }).catch(error => {
+            console.error("Error fetching user chats:", error);
+        });
+
+
         try {
             const notificationId = await scheduleLocalNotification(notificationPayload);
             if (notificationId) {
@@ -285,8 +310,9 @@ export default function Settings() {
             console.error("Failed to schedule check-in notification:", error);
             Alert.alert("Error", "Failed to schedule check-in notification.");
         }
+
     };
-    
+
 
     return (
         <>
@@ -349,7 +375,7 @@ export default function Settings() {
                                 value={userInfo?.uses2FA ?? false}
                             />
                         </View>
-                        
+
                     </View>
 
                     <View className="w-full mb-6">
@@ -402,9 +428,9 @@ export default function Settings() {
                             <View className="flex-row items-center justify-between py-2">
                                 <View>
                                     <Text className="text-white font-thin">Enable priority-based notifications</Text>
-                                    <Text className="text-gray-400 text-xs">
+                                    {/* <Text className="text-gray-400 text-xs">
                                         This will schedule notifications based on event priority:
-                                    </Text>
+                                    </Text> */}
                                     <Text className="text-gray-400 text-xs">Low priority: 1 hour before</Text>
                                     <Text className="text-gray-400 text-xs">Medium priority: 4 hours and 30 minutes before</Text>
                                     <Text className="text-gray-400 text-xs">High priority: 1 day, 4 hours, and 15 minutes before</Text>
