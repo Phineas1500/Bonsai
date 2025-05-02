@@ -1,5 +1,5 @@
 import { auth, db } from '@/firebaseConfig';
-import { arrayUnion, doc, updateDoc } from 'firebase/firestore';
+import { arrayUnion, doc, getDoc, updateDoc } from 'firebase/firestore';
 import { getUserByEmail } from './userManagement';
 import { sendPushNotification } from './notificationAPI';
 
@@ -45,10 +45,21 @@ export const getAchievementDetails = async (email: string, achievements: string[
 // Updates list of user's achievements in db
 export const updateAchievements = async (userEmail: string, newAchievement: string) => {
   try {
-    await updateDoc(doc(db, "users", userEmail), {
-      achievements: arrayUnion(newAchievement)
-    });
-    await sendAchievementNotification(userEmail, newAchievement);
+    const docRef = doc(db, "users", userEmail);
+    const dataSnap = await getDoc(docRef);
+    if (dataSnap.exists()) {
+      const achievements = dataSnap.data().achievements;
+
+      if (!achievements.includes(newAchievement)) {
+        await updateDoc(doc(db, "users", userEmail), {
+          achievements: arrayUnion(newAchievement)
+        });
+        await sendAchievementNotification(userEmail, newAchievement);
+      }
+    }
+    else {
+      throw new Error('Error getting user achievements');
+    }
   } catch (e) {
     console.error('Error updating achievements: ', e);
   }
