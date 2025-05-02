@@ -43,6 +43,9 @@ export default function Welcome() {
         usesGoogle: userData.signinType === 'google',
         signinType: userData.signinType,
         createdAt: userData.createdAt,
+
+        additionalSettings: userData.additionalSettings || {},
+
         // Use null coalescing for arrays to avoid unnecessary array creations
         friends: userData.friends ?? [],
         incomingFriendRequests: userData.incomingFriendRequests ?? [],

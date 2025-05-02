@@ -95,19 +95,27 @@ class AIService {
         const allMessages = isProjectChat
           ? await getProjectMessages(chatId)
           : await getMessages(chatId);
+        console.log(allMessages.length);
 
         // if enough messages
         if (allMessages.length >= this.MESSAGES_TO_TRIGGER_SUMMARY) {
+          console.log("AIService - CREATING SUMMARY ------------------ (enough messages: ", allMessages.length, ")");
           // (messages are ascending, so oldest first, take all but the last 10)
           const messagesToSummarize = allMessages.slice(0, allMessages.length - this.MESSAGES_TO_KEEP);
+
+          // console.log(JSON.stringify(messagesToSummarize, null, 2));
 
           // add senderusername if project chat
           const formattedMessages = messagesToSummarize.map(msg => ({
             role: msg.senderUsername === 'Bonsai' ? 'model' : 'user',
             parts: [{
-              text: isProjectChat ? (msg.senderUsername !== 'Bonsai' ? (msg.senderUsername + ": ") : "") : "" + msg.text,
+              text: isProjectChat ?
+                ((msg.senderUsername !== 'Bonsai' ? (msg.senderUsername + ": ") : "") + msg.text) :
+                msg.text
             }]
           }));
+
+          // console.log(JSON.stringify(formattedMessages, null, 2));
 
           const summary = await this.summarizeMessages(formattedMessages);
           const lastMessageId = messagesToSummarize[messagesToSummarize.length - 1].id;
@@ -143,7 +151,7 @@ class AIService {
 
         // if enough new messages (20)
         if (newMessagesCount >= this.MESSAGES_TO_TRIGGER_SUMMARY) {
-          // console.log("AIService - SUMMARIZING");
+          console.log("AIService - SUMMARIZING WITH EXISTING SUMMARY ------------------ (new messages: ", newMessagesCount, ")");
 
           // Get messages to add to the summary (between last summarized and the cutoff: 10)
           const cutoffIndex = allMessages.length - this.MESSAGES_TO_KEEP;
@@ -156,7 +164,9 @@ class AIService {
           const formattedMessages = messagesToAdd.map(msg => ({
             role: msg.senderUsername === 'Bonsai' ? 'model' : 'user',
             parts: [{
-              text: isProjectChat ? (msg.senderUsername !== 'Bonsai' ? (msg.senderUsername + ": ") : "") : "" + msg.text,
+              text: isProjectChat ?
+                ((msg.senderUsername !== 'Bonsai' ? (msg.senderUsername + ": ") : "") + msg.text) :
+                msg.text
             }]
           }));
 
@@ -196,7 +206,7 @@ class AIService {
     const isProjectChat = sessionId.split('_')[0] === 'project';
 
     this.checkAndUpdateSummary(chatId, isProjectChat).catch(err => {
-      console.error("Background summary update failed:", err);
+      console.error("checkAndUpdateSummary() - Background summary update failed:", err);
     });
 
     return result.response.text();

@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useEffect, useState, ReactNode, useCallback, useMemo } from "react";
 import { NotificationPreferences } from "./NotificationContext";
+import { AdditionalSettings } from "@screens/settings";
 
 export interface UserInfo {
     username: string;
@@ -16,9 +17,10 @@ export interface UserInfo {
         expires_at?: number; // Add expiration timestamp
     }
     notificationPreferences?: NotificationPreferences;
+    additionalSettings?: AdditionalSettings;
     // Additional fields from Firestore
     signinType?: string;
-    createdAt?: string;
+    createdAt: string;
     friends?: string[];
     incomingFriendRequests?: string[];
     outgoingFriendRequests?: string[];

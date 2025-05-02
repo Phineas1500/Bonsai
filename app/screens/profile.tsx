@@ -22,25 +22,26 @@ import { DailyActivityLog, getActivityHistory, logActivityForToday } from "../co
 import ActivityCalendarDay, { ActivityCalendarDayType } from "../components/ActivityCalendarDay";
 
 // interface of all user info stored in firestore
-interface UserInfo {
-  email: string;
-  username: string;
-  signinType: string;
-  createdAt: string;
-  friends?: string[];
-  incomingFriendRequests?: string[];
-  outgoingFriendRequests?: string[];
-  streak?: number;
-  lastCheckInDate?: string;
-  achievements?: string[];
-}
+import { UserInfo } from "@contexts/UserContext";
+// interface UserInfo {
+//   email: string;
+//   username: string;
+//   signinType: string;
+//   createdAt: string;
+//   friends?: string[];
+//   incomingFriendRequests?: string[];
+//   outgoingFriendRequests?: string[];
+//   streak?: number;
+//   lastCheckInDate?: string;
+//   achievements?: string[];
+// }
 
 type FriendshipStatus = 'none' | 'friends' | 'incoming' | 'outgoing' | 'error';
 
 export default function Profile() {
   const { username: usernameParam } = useLocalSearchParams<{ username: string }>();
-  const { userInfo: contextUserInfo } = useUser();
-  const [userInfo, setUserInfo] = useState<UserInfo | null>(null);
+  const { userInfo: contextUserInfo } = useUser(); // THIS IS THE LOGGED IN USER
+  const [userInfo, setUserInfo] = useState<UserInfo | null>(null); // THIS IS THE DISPLAYED USER
   const [loading, setLoading] = useState(true);
   const [isCurrentUser, setIsCurrentUser] = useState(true);
   const [friendStatus, setFriendStatus] = useState<FriendshipStatus>('none');
@@ -60,6 +61,7 @@ export default function Profile() {
           const userData: UserInfo = {
             email: data.email,
             username: data.username,
+            usesGoogle: data.usesGoogle,
             signinType: data.signinType,
             createdAt: data.createdAt,
             friends: data.friends || [],
@@ -67,7 +69,9 @@ export default function Profile() {
             outgoingFriendRequests: data.outgoingFriendRequests || [],
             streak: data.streak || 0,
             lastCheckInDate: data.lastCheckInDate || "0",
-            achievements: data.achievements || []
+            achievements: data.achievements || [],
+
+            additionalSettings: data.additionalSettings || {}
           };
           setUserInfo(userData);
 
@@ -93,6 +97,7 @@ export default function Profile() {
           const userData: UserInfo = {
             email: data.email,
             username: data.username,
+            usesGoogle: data.usesGoogle,
             signinType: data.signinType,
             createdAt: data.createdAt,
             friends: data.friends || [],
@@ -100,7 +105,7 @@ export default function Profile() {
             outgoingFriendRequests: data.outgoingFriendRequests || [],
             streak: data.streak || 0,
             lastCheckInDate: data.lastCheckInDate || "0",
-            achievements: data.achievements || []
+            achievements: data.achievements || [],
           };
 
           setUserInfo(userData);
@@ -221,6 +226,11 @@ export default function Profile() {
   useEffect(() => {
     const loadAchievements = async () => {
       if (userInfo) {
+        if (userInfo.additionalSettings?.hideAchievements) {
+          setAchievements([]);
+          return;
+        }
+
         const achievementDetails = await getAchievementDetails(userInfo.email, userInfo.achievements);
         setAchievements(achievementDetails);
       }
@@ -427,17 +437,30 @@ export default function Profile() {
                 <Text className="text-white font-bold my-4">
                   Achievements
                 </Text>
-                <ScrollView horizontal={true} showsHorizontalScrollIndicator={false} className="flex-row">
-                  {achievements.map((a, index) => (
-                    <AchievementItem
-                      key={index}
-                      url={a.url}
-                      title={a.title}
-                      description={a.description}
-                      classStyle={index < achievements.length - 1 ? "mr-4" : ""}
+                {achievements.length === 0 ? (
+                  <View className="bg-[#1D1D1D] rounded-2xl items-center p-4 mb-2">
+                    <Image
+                      source={{ uri: "https://api.dicebear.com/9.x/shapes/png?seed=noAchievements" }}
+                      className="h-16 w-16 rounded-full object-cover bg-white mb-2"
+                      resizeMode="contain"
                     />
-                  ))}
-                </ScrollView>
+                    <Text className="text-sm text-center text-gray-400">
+                      No achievements here! 👀
+                    </Text>
+                  </View>
+                ) : (
+                  <ScrollView horizontal={true} showsHorizontalScrollIndicator={false} className="flex-row">
+                    {achievements.map((a, index) => (
+                      <AchievementItem
+                        key={index}
+                        url={a.url}
+                        title={a.title}
+                        description={a.description}
+                        classStyle={index < achievements.length - 1 ? "mr-4" : ""}
+                      />
+                    ))}
+                  </ScrollView>
+                )}
               </View>
 
               {/* Activity Calendar */}

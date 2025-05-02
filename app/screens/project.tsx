@@ -21,8 +21,13 @@ import Animated, {
   withTiming,
   Easing,
   interpolate,
-  Extrapolation
+  Extrapolation,
+  configureReanimatedLogger
 } from 'react-native-reanimated';
+
+configureReanimatedLogger({
+  strict: false,
+})
 
 import { auth } from '@/firebaseConfig';
 import { Timestamp } from 'firebase/firestore';

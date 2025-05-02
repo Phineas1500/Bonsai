@@ -5,17 +5,24 @@ import * as Google from 'expo-auth-session/providers/google';
 import { useUser } from '@contexts/UserContext';
 import React from 'react';
 import { NotificationPreferences, NotificationTrigger, useNotification } from '../contexts/NotificationContext';
-import { NotificationPayload, sendPushNotification } from '../components/utils/notificationAPI';
+
 import { router } from 'expo-router';
-import { auth } from '@/firebaseConfig';
+import { auth, db } from '@/firebaseConfig';
 import { signOut } from 'firebase/auth';
+import { doc, updateDoc } from 'firebase/firestore';
 
 import ChangeUsernameModal from '@components/ChangeUsernameModal';
 import DeleteAccountModal from '@components/DeleteAccountModal';
 import { ScrollView } from 'react-native-gesture-handler';
 
+
+export interface AdditionalSettings {
+    hideAchievements?: boolean;
+}
+
+
 export default function Settings() {
-    const { userInfo, setUserInfo } = useUser();
+    const { userInfo, setUserInfo, updateUserInfo } = useUser();
     const [changeUsernamePrompt, setChangeUsernamePrompt] = useState(false);
     const [deleteAccountPrompt, setDeleteAccountPrompt] = useState(false);
 
@@ -38,7 +45,7 @@ export default function Settings() {
         ]
     });
 
-    const {enableNotifications, expoPushToken, notifications, error, updateNotificationPreferences, notificationPreferences} = useNotification();
+    const { enableNotifications, expoPushToken, notifications, error, updateNotificationPreferences, notificationPreferences } = useNotification();
 
     useEffect(() => {
         if (response?.type === 'success') {
@@ -50,7 +57,7 @@ export default function Settings() {
             console.log("Auth Successful:", authObj);
 
             const newUserInfo = {
-                ...(userInfo ?? { username: "", email: "", usesGoogle: false }),
+                ...(userInfo ?? { username: "", email: "", usesGoogle: false, createdAt: new Date().toISOString() }),
                 calendarAuth: {
                     access_token: authObj.accessToken || "",
                     refresh_token: authObj.refreshToken || ""
@@ -104,14 +111,14 @@ export default function Settings() {
             return;
         }
 
-        const newVal : boolean = !switchEnabled;
+        const newVal: boolean = !switchEnabled;
 
         //if enabling notifications, request that
         if (newVal) {
             await enableNotifications();
         }
 
-        const newPrefs : Partial<NotificationPreferences> = {
+        const newPrefs: Partial<NotificationPreferences> = {
             notificationsEnabled: newVal
         }
         await updateNotificationPreferences({ ...newPrefs }, userInfo?.email);
@@ -121,7 +128,7 @@ export default function Settings() {
     const currentTriggers = notificationPreferences.triggers;
 
     const triggerOptions = [
-        { label: "Tasks", value: NotificationTrigger.Tasks},
+        { label: "Tasks", value: NotificationTrigger.Tasks },
         { label: "Friend Requests", value: NotificationTrigger.FriendRequests },
         { label: "Project Invites", value: NotificationTrigger.ProjectInvites },
     ]
@@ -133,8 +140,8 @@ export default function Settings() {
         }
 
         const updatedTriggers = currentTriggers.includes(trigger)
-          ? currentTriggers.filter(t => t !== trigger)
-          : [...currentTriggers, trigger];
+            ? currentTriggers.filter(t => t !== trigger)
+            : [...currentTriggers, trigger];
 
         updateNotificationPreferences({ triggers: updatedTriggers }, userInfo.email);
     };
@@ -154,133 +161,187 @@ export default function Settings() {
         }
 
         const updatedOffsets = currentOffsets.includes(minuteOffset)
-          ? currentOffsets.filter(o => o !== minuteOffset)
-          : [...currentOffsets, minuteOffset];
+            ? currentOffsets.filter(o => o !== minuteOffset)
+            : [...currentOffsets, minuteOffset];
 
         updateNotificationPreferences({ reminderOffsets: updatedOffsets }, userInfo.email);
     }
 
+    // *
+    // * OTHER SETTINGS FUNCTIONS (not notifs)
+    // *
+
+    // disable achievements from showing from public profile
+    const hiddenAchievements = userInfo?.additionalSettings?.hideAchievements || false;
+    const hideAchievements = async () => {
+        if (!userInfo?.email) {
+            console.error("no email??? hideAchievements()");
+            return;
+        }
+
+        try {
+            const oldVal = userInfo.additionalSettings?.hideAchievements || false;
+
+            const docRef = doc(db, "users", userInfo.email);
+            await updateDoc(docRef, {
+                additionalSettings: {
+                    ...userInfo.additionalSettings,
+                    hideAchievements: !oldVal
+                }
+            });
+
+            updateUserInfo({
+                additionalSettings: {
+                    ...userInfo.additionalSettings,
+                    hideAchievements: !oldVal
+                }
+            });
+            Alert.alert("Success", "Achievements visibility updated successfully.");
+        } catch (error) {
+            console.error("hideAchievements():", error);
+        }
+    };
+
+
+
     return (
         <>
-        <ScrollView className='flex-1 bg-stone-950'>
-            <View className="flex-1 flex-col items-start p-6">
-                <View className="w-full mb-6">
-                    <Text className="text-white text-lg mb-2">Account</Text>
-                    <TouchableOpacity
-                        onPress={() => setChangeUsernamePrompt(true)}
-                        className="py-3 border-b border-gray-800"
-                    >
-                        <Text className="text-teal-500">Change Username</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                        onPress={() => setDeleteAccountPrompt(true)}
-                        className="py-3 border-b border-gray-800"
-                    >
-                        <Text className="text-teal-500">Delete Account</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                        onPress={handleLogout}
-                        className="py-3 border-b border-gray-800"
-                    >
-                        <Text className="text-teal-500">Logout</Text>
-                    </TouchableOpacity>
-                </View>
+            <ScrollView className='flex-1 bg-stone-950'>
+                <View className="flex-1 flex-col items-start p-6">
+                    <View className="w-full mb-6">
+                        <Text className="text-white text-lg mb-2">Account</Text>
+                        <TouchableOpacity
+                            onPress={() => setChangeUsernamePrompt(true)}
+                            className="py-3 border-b border-gray-800"
+                        >
+                            <Text className="text-teal-500">Change Username</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                            onPress={() => setDeleteAccountPrompt(true)}
+                            className="py-3 border-b border-gray-800"
+                        >
+                            <Text className="text-teal-500">Delete Account</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                            onPress={handleLogout}
+                            className="py-3 border-b border-gray-800"
+                        >
+                            <Text className="text-teal-500">Logout</Text>
+                        </TouchableOpacity>
+                    </View>
 
-                <View className="w-full mb-6">
-                    <Text className="text-white text-lg mb-2">Integrations</Text>
-                    <Button
-                        disabled={!request}
-                        title="Connect Google Calendar"
-                        onPress={() => promptAsync()}
+                    <View className="w-full mb-6">
+                        <Text className="text-white text-lg mb-2">Integrations</Text>
+                        <Button
+                            disabled={!request}
+                            title="Connect Google Calendar"
+                            onPress={() => promptAsync()}
+                        />
+                    </View>
+
+                    <View className="w-full mb-6">
+                        <Text className="text-white text-lg border-b border-gray-800 py-3 ">Notifications</Text>
+                        {/* Notifications toggle */}
+                        <View className="flex-row items-center justify-between mb-4 border-b border-gray-800 py-3">
+                            <Text className="text-white text-sm font-thin ">Notifications enabled:</Text>
+                            <Switch
+                                trackColor={{ false: "#ccc", true: "#81b0ff" }}
+                                thumbColor={switchEnabled ? "#007aff" : "#f4f3f4"}
+                                ios_backgroundColor="#ccc"
+                                onValueChange={toggleNotifications}
+                                value={switchEnabled}
+                            />
+
+                        </View>
+                        {/* Notification preferences */}
+                        <View className="border-b mb-4 border-gray-800">
+                            <Text className="text-white font-bold text-sm mb-1">What do you want to be notified about?</Text>
+                            {triggerOptions.map(trigger => (
+                                <View key={trigger.value} className="flex-row items-center justify-between py-2">
+                                    <Text className="text-white font-thin capitalize">{trigger.label}</Text>
+                                    <Switch
+                                        value={currentTriggers.includes(trigger.value)}
+                                        onValueChange={() => toggleTrigger(trigger.value)}
+                                        trackColor={{ false: "#ccc", true: "#81b0ff" }}
+                                        thumbColor={currentTriggers.includes(trigger.value) ? "#007aff" : "#f4f3f4"}
+                                    />
+                                </View>
+                            ))}
+                        </View>
+                        {/* Notifications frequency */}
+                        <View className="order-b mb-4 border-gray-800">
+                            <Text className="text-white text-sm mb-1">How frequently do you want to be notified?</Text>
+                            {frequencyOptions.map(freqOption => (
+                                <View key={freqOption.value} className="flex-row items-center justify-between py-2">
+                                    <Text className="text-white capitalize font-thin">{freqOption.label}</Text>
+                                    <Switch
+                                        value={currentOffsets.includes(freqOption.value)}
+                                        onValueChange={() => toggleFrequency(freqOption.value)}
+                                        trackColor={{ false: "#ccc", true: "#81b0ff" }}
+                                        thumbColor={currentOffsets.includes(freqOption.value) ? "#007aff" : "#f4f3f4"}
+                                    />
+                                </View>
+                            ))}
+                        </View>
+                        {/* Priority-based notifications */}
+                        <View className="border-b mb-4 border-gray-800">
+                            <Text className="text-white font-bold text-sm mb-1">Priority-based notifications</Text>
+                            <View className="flex-row items-center justify-between py-2">
+                                <View>
+                                    <Text className="text-white font-thin">Enable priority-based notifications</Text>
+                                    <Text className="text-gray-400 text-xs">
+                                        This will schedule notifications based on event priority:
+                                    </Text>
+                                    <Text className="text-gray-400 text-xs">Low priority: 1 hour before</Text>
+                                    <Text className="text-gray-400 text-xs">Medium priority: 4 hours and 30 minutes before</Text>
+                                    <Text className="text-gray-400 text-xs">High priority: 1 day, 4 hours, and 15 minutes before</Text>
+                                </View>
+                                <Switch
+                                    value={notificationPreferences.priorityNotificationsEnabled}
+                                    onValueChange={() => {
+                                        if (!userInfo?.email) return;
+                                        updateNotificationPreferences({
+                                            priorityNotificationsEnabled: !notificationPreferences.priorityNotificationsEnabled
+                                        }, userInfo.email);
+                                    }}
+                                    trackColor={{ false: "#ccc", true: "#81b0ff" }}
+                                    thumbColor={notificationPreferences.priorityNotificationsEnabled ? "#007aff" : "#f4f3f4"}
+                                />
+                            </View>
+                        </View>
+                    </View>
+
+
+
+                    <View className="w-full mb-6">
+                        <Text className="text-white text-lg border-b border-gray-800 py-3 ">Additional Settings</Text>
+                        {/* Notifications toggle */}
+                        <View className="flex-row items-center justify-between mb-4 border-b border-gray-800 py-3">
+                            <Text className="text-white text-sm font-thin ">Hide achievements on your public profile</Text>
+                            <Switch
+                                trackColor={{ false: "#ccc", true: "#81b0ff" }}
+                                thumbColor={hiddenAchievements ? "#007aff" : "#f4f3f4"}
+                                ios_backgroundColor="#ccc"
+                                onValueChange={() => hideAchievements()}
+                                value={hiddenAchievements}
+                            />
+                        </View>
+                    </View>
+
+                    <ChangeUsernameModal
+                        visible={changeUsernamePrompt}
+                        currentUsername={userInfo?.username || ""}
+                        onRequestClose={() => {
+                            setChangeUsernamePrompt(false);
+                        }}
+                    />
+                    <DeleteAccountModal
+                        visible={deleteAccountPrompt}
+                        onRequestClose={() => {
+                            setDeleteAccountPrompt(false);
+                        }}
                     />
                 </View>
-
-                <View className="w-full mb-6">
-                    <Text className="text-white text-lg border-b border-gray-800 py-3 ">Notifications</Text>
-                    {/* Notifications toggle */}
-                    <View className="flex-row items-center justify-between mb-4 border-b border-gray-800 py-3">
-                        <Text className="text-white text-sm font-thin ">Notifications enabled:</Text>
-                        <Switch
-                            trackColor={{ false: "#ccc", true: "#81b0ff" }}
-                            thumbColor={switchEnabled ? "#007aff" : "#f4f3f4"}
-                            ios_backgroundColor="#ccc"
-                            onValueChange={toggleNotifications}
-                            value={switchEnabled}
-                        />
-
-                    </View>
-                    {/* Notification preferences */}
-                    <View className="border-b mb-4 border-gray-800">
-                        <Text className="text-white font-bold text-sm mb-1">What do you want to be notified about?</Text>
-                        {triggerOptions.map(trigger => (
-                            <View key={trigger.value} className="flex-row items-center justify-between py-2">
-                            <Text className="text-white font-thin capitalize">{trigger.label}</Text>
-                            <Switch
-                                value={currentTriggers.includes(trigger.value)}
-                                onValueChange={() => toggleTrigger(trigger.value)}
-                                trackColor={{ false: "#ccc", true: "#81b0ff" }}
-                                thumbColor={currentTriggers.includes(trigger.value) ? "#007aff" : "#f4f3f4"}
-                            />
-                        </View>
-                        ))}
-                    </View>
-                    {/* Notifications frequency */}
-                    <View className="order-b mb-4 border-gray-800">
-                        <Text className="text-white text-sm mb-1">How frequently do you want to be notified?</Text>
-                        {frequencyOptions.map(freqOption => (
-                            <View key={freqOption.value} className="flex-row items-center justify-between py-2">
-                            <Text className="text-white capitalize font-thin">{freqOption.label}</Text>
-                            <Switch
-                                value={currentOffsets.includes(freqOption.value)}
-                                onValueChange={() => toggleFrequency(freqOption.value)}
-                                trackColor={{ false: "#ccc", true: "#81b0ff" }}
-                                thumbColor={currentOffsets.includes(freqOption.value) ? "#007aff" : "#f4f3f4"}
-                            />
-                        </View>
-                        ))}
-                    </View>
-                    {/* Priority-based notifications */}
-                    <View className="border-b mb-4 border-gray-800">
-                        <Text className="text-white font-bold text-sm mb-1">Priority-based notifications</Text>
-                        <View className="flex-row items-center justify-between py-2">
-                            <View>
-                                <Text className="text-white font-thin">Enable priority-based notifications</Text>
-                                <Text className="text-gray-400 text-xs">
-                                    This will schedule notifications based on event priority:
-                                </Text>
-                                <Text className="text-gray-400 text-xs">Low priority: 1 hour before</Text>
-                                <Text className="text-gray-400 text-xs">Medium priority: 4 hours and 30 minutes before</Text>
-                                <Text className="text-gray-400 text-xs">High priority: 1 day, 4 hours, and 15 minutes before</Text>
-                            </View>
-                            <Switch
-                                value={notificationPreferences.priorityNotificationsEnabled}
-                                onValueChange={() => {
-                                    if (!userInfo?.email) return;
-                                    updateNotificationPreferences({
-                                        priorityNotificationsEnabled: !notificationPreferences.priorityNotificationsEnabled
-                                    }, userInfo.email);
-                                }}
-                                trackColor={{ false: "#ccc", true: "#81b0ff" }}
-                                thumbColor={notificationPreferences.priorityNotificationsEnabled ? "#007aff" : "#f4f3f4"}
-                            />
-                        </View>
-                    </View>
-                </View>
-
-                <ChangeUsernameModal
-                    visible={changeUsernamePrompt}
-                    currentUsername={userInfo?.username || ""}
-                    onRequestClose={() => {
-                        setChangeUsernamePrompt(false);
-                    }}
-                />
-                <DeleteAccountModal
-                    visible={deleteAccountPrompt}
-                    onRequestClose={() => {
-                        setDeleteAccountPrompt(false);
-                    }}
-                />
-            </View>
             </ScrollView>
         </>
     );
