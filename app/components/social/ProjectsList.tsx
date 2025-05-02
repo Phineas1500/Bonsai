@@ -57,7 +57,7 @@ const ProjectsList = ({ refreshTrigger }: ProjectsListProps) => {
   }, [currentUser, refreshTrigger]);
 
   useEffect(() => {
-    console.log(projects.length);
+    // console.log(projects.length);
     checkProjectAchievement(projects.length);
   }, [projects]);
 

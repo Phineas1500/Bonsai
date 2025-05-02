@@ -65,6 +65,19 @@ class AIService {
 
     console.log("history length:", history.length);
 
+    // failsafe for if first msg is model
+    if (history.length > 0 && history[0].role === 'model') {
+      console.log("TRIGGERING HERE------------\n\n");
+      console.log(JSON.stringify(history, null, 2));
+      const tmp = {
+        role: 'user',
+        parts: [{ text: '' }]
+      };
+
+      history.unshift(tmp);
+    }
+    // console.log(JSON.stringify(history, null, 2));
+
     const chatSession = this.model.startChat({
       generationConfig,
       systemInstruction: {
@@ -157,6 +170,7 @@ class AIService {
           const cutoffIndex = allMessages.length - this.MESSAGES_TO_KEEP;
           const messagesToAdd = allMessages.slice(lastSummarizedIndex + 1, cutoffIndex);
           // console.log("ADDING FROM index:", lastSummarizedIndex + 1, "to index:", cutoffIndex);
+          // console.log("Messages to add for summary: ", JSON.stringify(messagesToAdd, null, 2));
 
           if (messagesToAdd.length === 0) return;
 
@@ -169,6 +183,8 @@ class AIService {
                 msg.text
             }]
           }));
+
+          // console.log("Formatted messages for summary: ", JSON.stringify(formattedMessages, null, 2));
 
           const existingSummary = {
             role: 'user',
@@ -217,52 +233,96 @@ class AIService {
       throw new Error('Model not initialized');
     }
 
+    console.log("\tSummarizing messages:", messages.length);
+
     if (messages.length === 0) return "No previous conversation.";
 
     try {
-      const summarizationChat = this.model.startChat({
-        generationConfig: {
-          temperature: 0.1,
-          maxOutputTokens: 256,
-        },
-        systemInstruction: {
-          role: 'system',
-          parts: [{
-            text: `You are a summarization assistant. Your task is to create a concise summary of
-            the conversation history provided below. Focus on key points, decisions made,
-            any actions that were agreed upon, and important context. Keep the summary brief but
-            informative so someone reading it would understand the main topics discussed.`
-          }]
-        },
-      });
+      // Retry logic - we'll try up to 3 times
+      const MAX_ATTEMPTS = 3;
+      let attemptCount = 0;
+      let summary = "";
 
-      // Check if the first message is a summary and extract it
-      let existingSummary = "";
-      if (messages.length > 0 &&
-        messages[0].role === 'user' &&
-        messages[0].parts[0].text.includes('[CONVERSATION SUMMARY:')) {
-        const summaryText = messages[0].parts[0].text;
-        existingSummary = summaryText.substring(
-          summaryText.indexOf('[CONVERSATION SUMMARY:') + '[CONVERSATION SUMMARY:'.length,
-          summaryText.indexOf(']', summaryText.indexOf('[CONVERSATION SUMMARY:'))
-        ).trim();
+      while (attemptCount < MAX_ATTEMPTS && !summary) {
+        attemptCount++;
+        console.log(`\tSummarization attempt #${attemptCount}`);
 
-        // Skip the summary when creating the conversation text
-        messages = messages.slice(1);
+        const summarizationChat = this.model.startChat({
+          generationConfig: {
+            temperature: 0.3, // Slight increase from 0.1 to encourage more output
+            maxOutputTokens: 512, // Increase from 256 to allow more room for summary
+            topK: 40,
+            topP: 0.95,
+          },
+          systemInstruction: {
+            role: 'system',
+            parts: [{
+              text: `You are a summarization assistant. Your task is to create a concise summary of
+              the conversation history provided below. Focus on key points, decisions made,
+              any actions that were agreed upon, and important context. Keep the summary brief but
+              informative so someone reading it would understand the main topics discussed.
+              IMPORTANT: You MUST provide a summary - never return an empty response.
+              If the conversation seems trivial or minimal, summarize what's there anyway.`
+            }]
+          },
+        });
+
+        // Check if the first message is a summary and extract it
+        let existingSummary = "";
+        if (messages.length > 0 &&
+          messages[0].role === 'user' &&
+          messages[0].parts[0].text.includes('[CONVERSATION SUMMARY:')) {
+          const summaryText = messages[0].parts[0].text;
+          existingSummary = summaryText.substring(
+            summaryText.indexOf('[CONVERSATION SUMMARY:') + '[CONVERSATION SUMMARY:'.length,
+            summaryText.indexOf(']', summaryText.indexOf('[CONVERSATION SUMMARY:'))
+          ).trim();
+
+          console.log("\t found existing summary:", existingSummary);
+
+          if (existingSummary === "null") existingSummary = "";
+
+          // Skip the summary when creating the conversation text
+          messages = messages.slice(1);
+        }
+
+        let conversationText = messages.map(msg => {
+          const role = msg.role === 'model' ? 'AI' : 'User';
+          return `${role}: ${msg.parts[0].text}`;
+        }).join("\n\n");
+        console.log("\tformatted conversation text:", conversationText);
+
+        // Include existing summary in the input if available
+        const promptText = existingSummary
+          ? `Previous summary: ${existingSummary}\n\nAdditional conversation to incorporate:\n\n${conversationText}\n\nProvide an updated comprehensive summary that includes both the previous summary and the new conversation. Your response must contain only the summary text.`
+          : `Please summarize the following conversation:\n\n${conversationText}\n\nProvide a concise summary that captures the key points. Your response must contain only the summary text.`;
+
+        try {
+          console.log("\tSending summarization request...");
+          const result = await summarizationChat.sendMessage(promptText);
+          const responseText = result.response.text().trim();
+          console.log("\tsummary result:", responseText);
+
+          // Validate we got a meaningful response
+          if (responseText && responseText.length > 5) {
+            summary = responseText;
+          } else {
+            console.warn("\tReceived empty or too short summary, will retry");
+            await new Promise(resolve => setTimeout(resolve, 1000));
+          }
+        } catch (innerError) {
+          console.error("\tError in summarization attempt:", innerError);
+          await new Promise(resolve => setTimeout(resolve, 1000));
+        }
       }
 
-      let conversationText = messages.map(msg => {
-        const role = msg.role === 'model' ? 'AI' : 'User';
-        return `${role}: ${msg.parts[0].text}`;
-      }).join("\n\n");
+      // If we still don't have a summary after all attempts, provide a fallback
+      if (!summary) {
+        console.warn("\tFailed to generate summary after multiple attempts, using fallback");
+        return "Brief conversation with minimal context. See above for details.";
+      }
 
-      // Include existing summary in the input if available
-      const promptText = existingSummary
-        ? `Previous summary: ${existingSummary}\n\nAdditional conversation to incorporate:\n\n${conversationText}\n\nProvide an updated comprehensive summary that includes both the previous summary and the new conversation.`
-        : `Please summarize the following conversation:\n\n${conversationText}\n\nProvide a concise summary that captures the key points.`;
-
-      const result = await summarizationChat.sendMessage(promptText);
-      return result.response.text().trim();
+      return summary;
     } catch (error) {
       console.error("Error summarizing messages:", error);
       return "Previous conversation summary unavailable.";
