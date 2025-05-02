@@ -70,7 +70,7 @@ export default function Profile() {
             streak: data.streak || 0,
             lastCheckInDate: data.lastCheckInDate || "0",
             achievements: data.achievements || [],
-
+            uses2FA: data.uses2FA || false,
             additionalSettings: data.additionalSettings || {}
           };
           setUserInfo(userData);
@@ -105,6 +105,7 @@ export default function Profile() {
             outgoingFriendRequests: data.outgoingFriendRequests || [],
             streak: data.streak || 0,
             lastCheckInDate: data.lastCheckInDate || "0",
+            uses2FA: data.uses2FA || false,
             achievements: data.achievements || [],
           };
 
