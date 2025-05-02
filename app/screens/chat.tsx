@@ -23,7 +23,7 @@ export default function Chat() {
   const [showWelcome, setShowWelcome] = useState(true);
   const welcomeOpacity = useRef(new Animated.Value(1)).current;
   const [dailyStreakCheckIn, setDailyStreakCheckIn] = useState(false);
-  const { tasks, refreshTasks } = useTasks();
+  const { tasks, refreshTasks, updateTask, bonsaiCalendarID } = useTasks();
   const [uploadedContent, setUploadedContent] = useState<{text: string, filename: string} | null>(null);
 
   // Create a message factory function for the AI hook
@@ -57,6 +57,7 @@ export default function Chat() {
     sendMessage,
     tasks,
     refreshTasks,
+    updateTask,
     isProjectChat: false,
     createMessage
   });

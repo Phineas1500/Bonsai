@@ -23,6 +23,7 @@ interface chatbotProps<msg extends MessageBase> {
   sendMessage: (chatId: string, message: msg) => Promise<void>;
   tasks: TaskItemData[]; // Use TaskItemData
   refreshTasks: () => Promise<void>;
+  updateTask: (task: TaskItemData) => Promise<boolean>;
   isProjectChat?: boolean;
   createMessage: (text: string, sender: string) => msg;
   projectId?: string; // Add optional projectId
@@ -35,6 +36,7 @@ export function chatbot<msg extends MessageBase>({
   sendMessage,
   tasks, // This is now TaskItemData[]
   refreshTasks,
+  updateTask,
   isProjectChat = false,
   createMessage,
   projectId // Destructure projectId
@@ -224,6 +226,7 @@ export function chatbot<msg extends MessageBase>({
             - Follow the same time handling and assignment rules as for events/tasks.
 
         3.  **For Other Messages:** If NO events, tasks, or task plans are detected, provide a helpful text response. Start these text-only responses with "[AI_RESPONSE]". Example: "[AI_RESPONSE] Okay, I can help with that."
+            *   **If the user expresses difficulty or trouble with a specific *existing* task (mentioning its title or identifiable details from the context below), acknowledge this clearly in your text response.** For example: "[AI_RESPONSE] I understand you're having trouble with the task 'Deploy Website'. How can I assist?" or "[AI_RESPONSE] It sounds like you're stuck on 'Refactor Login Module'. What seems to be the issue?"
 
         IMPORTANT:
         - Respond ONLY with the JSON structure OR the "[AI_RESPONSE]" text format. Do not include any other text, explanations, or markdown formatting like \`\`\`json before or after the required output.
@@ -325,6 +328,51 @@ export function chatbot<msg extends MessageBase>({
         const botMessage = createMessage(textResponse, 'bot');
         await sendMessage(chatId, botMessage);
         setMessages(prev => [...prev, botMessage]);
+
+        // --- START: Check for 'trouble' pattern and update priority ---
+        const troublePattern = /trouble with the task '([^']+)'|stuck on '([^']+)'/i;
+        const match = textResponse.match(troublePattern);
+        const taskTitleFromResponse = match ? (match[1] || match[2]) : null;
+
+        if (taskTitleFromResponse) {
+          console.log(`AI indicated trouble with task: "${taskTitleFromResponse}"`);
+          const taskToUpdate = tasks.find(task =>
+            task.title.trim().toLowerCase() === taskTitleFromResponse.trim().toLowerCase()
+          );
+
+          if (taskToUpdate) {
+            const currentPriority = taskToUpdate.priority;
+            const newPriority = Math.min(10, currentPriority + 1); // Increase by 1, cap at 10
+
+            if (newPriority > currentPriority) {
+              console.log(`Increasing priority for task "${taskToUpdate.title}" from ${currentPriority} to ${newPriority}`);
+              try {
+                const updated = await updateTask({ ...taskToUpdate, priority: newPriority });
+                if (updated) {
+                  // Send a follow-up confirmation message
+                  const confirmationMsg = createMessage(
+                    `I've noted you're having trouble with '${taskToUpdate.title}' and increased its priority slightly.`,
+                    'bot'
+                  );
+                  await sendMessage(chatId, confirmationMsg);
+                  setMessages(prev => [...prev, confirmationMsg]);
+                  // Optionally refresh tasks immediately, or rely on the context's refresh cycle
+                  // await refreshTasks();
+                } else {
+                  console.warn(`Failed to update priority for task "${taskToUpdate.title}" via updateTask.`);
+                }
+              } catch (updateError) {
+                console.error(`Error updating task priority for "${taskToUpdate.title}":`, updateError);
+              }
+            } else {
+              console.log(`Task "${taskToUpdate.title}" is already at max priority (10).`);
+            }
+          } else {
+            console.log(`Could not find task "${taskTitleFromResponse}" in the current task list to update priority.`);
+          }
+        }
+        // --- END: Check for 'trouble' pattern ---
+
       } else {
         // Handle cases where AI gives no actionable response or empty response
         const fallbackMessage = createMessage("I received your message, but I couldn't determine a specific action.", 'bot');
@@ -345,7 +393,7 @@ export function chatbot<msg extends MessageBase>({
     } finally {
       setIsProcessing(false);
     }
-  }, [chatId, userInfo, tasks, sendMessage, setMessages, createMessage, isProjectChat, refreshTasks]);
+  }, [chatId, userInfo, tasks, sendMessage, setMessages, createMessage, isProjectChat, refreshTasks, updateTask, bonsaiCalendarID]);
 
   // Handle event confirmation
   const handleConfirmEvent = useCallback(async () => {
