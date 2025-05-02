@@ -12,7 +12,8 @@ import GradientButton from '@components/GradientButton';
 import GradientText from '@components/GradientText';
 import ForgotPasswordModal from '@components/ForgotPasswordModal';
 import TextInput from '@components/TextInput';
-import { getUserByUsername, validateSignInMethod } from '@components/utils/userManagement';
+import { useUser } from '@contexts/UserContext';
+import { fetchUserMFA, getUserByUsername, validateSignInMethod } from '@components/utils/userManagement';
 
 export default function SignIn() {
   const [forgotPasswordPrompt, setForgotPasswordPrompt] = useState(false);
@@ -20,6 +21,7 @@ export default function SignIn() {
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
+  const { updateUserInfo } = useUser(); // Use the new updateUserInfo function
 
   const handleSignIn = async () => {
     try {
@@ -51,8 +53,20 @@ export default function SignIn() {
         throw new Error('Account does not exist. Please sign up first.');
       }
 
+      updateUserInfo({
+        email: loginEmail
+      });
+
       await signInWithEmailAndPassword(auth, loginEmail, password);
-      router.push('/screens/authcallback');
+
+      //check if mfa
+      
+      const useMFA = await fetchUserMFA(loginEmail, updateUserInfo);
+      if (useMFA) {
+        router.push('/screens/mfaRedirect');
+      } else {
+        router.push('/screens/authcallback');
+      }
     } catch (err: any) {
       setError(err.message);
       Alert.alert('Error', err.message);
