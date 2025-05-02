@@ -73,8 +73,11 @@ export default function MFARedirect() {
   return (
     <View className="flex-1 justify-center items-center bg-stone-950 p-6">
       <View className="w-full max-w-sm items-center">
-        <Text className="text-sm font-light text-teal-500 text-center">
+        <Text className="text-4xl font-semibold text-teal-500 text-center mb-2">
           Enter 2FA Code
+        </Text>
+        <Text className="text-sm font-semibold text-white text-center mb-4">
+          For added security, a verification code has been sent to your phone. Enter it here to log in.
         </Text>
 
         <TextInput

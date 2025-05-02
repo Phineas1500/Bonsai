@@ -20,7 +20,6 @@ export interface AdditionalSettings {
     hideAchievements?: boolean;
 }
 
-
 export default function Settings() {
     const { userInfo, setUserInfo, updateUserInfo } = useUser();
     const [changeUsernamePrompt, setChangeUsernamePrompt] = useState(false);
@@ -291,10 +290,10 @@ export default function Settings() {
                     {/* 2fa settings */}
                     <View className="w-full mb-6">
                         <Text className="text-white text-lg border-b border-gray-800 py-3 ">Two-Factor Authentication</Text>
-                        <Text className="text-white">Current phone number: {userInfo?.phoneNumber || ''}</Text>
+                        <Text className="text-white mb-2 mt-2">Current phone number: {userInfo?.phoneNumber || 'Not set'}</Text>
                         <TextInput
                             placeholder="Phone Number"
-                            className="bg-gray-300 text-gray-600 w-full rounded-xl py-3 px-3"
+                            className="bg-gray-300 text-gray-600 w-full rounded-xl py-3 px-3 mb-2"
                             editable={true}
                             value={phoneNumber}
                             onChangeText={setPhoneNumber}
