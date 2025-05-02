@@ -57,7 +57,7 @@ export default function Settings() {
             console.log("Auth Successful:", authObj);
 
             const newUserInfo = {
-                ...(userInfo ?? { username: "", email: "", usesGoogle: false, createdAt: new Date().toISOString() }),
+                ...(userInfo ?? { username: "", email: "", usesGoogle: false, createdAt: new Date().toISOString(), uses2FA: undefined  }),
                 calendarAuth: {
                     access_token: authObj.accessToken || "",
                     refresh_token: authObj.refreshToken || ""
