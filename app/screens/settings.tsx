@@ -150,8 +150,8 @@ export default function Settings() {
     const currentOffsets = notificationPreferences.reminderOffsets;
     const frequencyOptions = [
         { label: "When it starts", value: 0 },
-        { label: "5 minutes before", value: 5 },
-        { label: "10 minutes before", value: 10 }
+        { label: "1 day before", value: 1440 },
+        { label: "Halfway to due date", value: -1 }
     ]
 
     const toggleFrequency = (minuteOffset: number) => {
