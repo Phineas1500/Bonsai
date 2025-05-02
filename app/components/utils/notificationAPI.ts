@@ -128,6 +128,7 @@ export const sendPushNotification = async (notification: NotificationPayload) =>
         };
         const response = await axios.post(endpoint, payload, config);
         console.log("Push notification sent successfully:", response.data);
+        //console.log("Expo push token: ", expoPushToken);
         return true;
     } catch (error: any) {
         console.error("Error sending push notification:", error);

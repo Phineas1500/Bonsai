@@ -9,6 +9,7 @@ import { useUser } from '@contexts/UserContext';
 import TextInput from '@components/TextInput';
 import { ConfirmationResult, signInWithPhoneNumber } from 'firebase/auth';
 import { auth } from '@/firebaseConfig';
+import { NotificationPayload, sendPushNotification } from '../components/utils/notificationAPI';
 
 
 export default function MFARedirect() {
@@ -20,27 +21,35 @@ export default function MFARedirect() {
   const [mfaCode, setMfaCode] = useState("");
 
   const hasSentCode = useRef(false);
-  const confirmationResult = useRef<ConfirmationResult | null>(null);
+  const confirmationCode = useRef<string | null>(null);
   const { userInfo } = useUser();
 
   useEffect(() => {
     if (hasSentCode.current) return;
     hasSentCode.current = true;
-
     
     if (!userInfo?.phoneNumber || userInfo.phoneNumber == '') {
       router.push('/screens/authcallback');
       return;
     }
-    send2FACode(userInfo.phoneNumber);
+    send2FACode(userInfo.email);
   }, []);
 
-  const send2FACode = async (phoneNumber : string) => {
+  const send2FACode = async (email : string) => {
     try {
-      console.log(phoneNumber);
-      const confirmation = await signInWithPhoneNumber(auth, phoneNumber);
-      confirmationResult.current = confirmation;
-      console.log("2fa code sent");
+      //generate a random 2fa code
+      const code = Math.floor(100000 + Math.random() * 900000);
+      confirmationCode.current = code.toString();
+
+      //send notification to the user
+      const notif : NotificationPayload = {
+        email: email,
+        title: "2FA Verification Code",
+        body: code.toString(),
+        data: {}
+      }
+      sendPushNotification(notif);
+      
     } catch (error: any) {
       console.error("Error sending 2FA code:", error);
       setError('Error sending 2FA code.');
@@ -48,20 +57,18 @@ export default function MFARedirect() {
   }
 
   const handleSubmit = async () => {
-    if (!confirmationResult.current) {
+    if (!confirmationCode.current) {
       setError("No confirmation result found.");
       return;
     }
-    try {
-      await confirmationResult.current.confirm(mfaCode);
+
+    if (mfaCode === confirmationCode.current) {
       console.log('2FA verified');
       router.push('/screens/chat');
-    } catch (error) {
-      console.log('Error verifying 2FA code:', error);
-      setError('Invalid 2FA code.');
+    } else {
+      setError("Incorrect 2FA code.")
     }
   }
-
 
   return (
     <View className="flex-1 justify-center items-center bg-stone-950 p-6">
