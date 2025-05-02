@@ -18,6 +18,8 @@ import { useUser } from "@contexts/UserContext";
 import { Feather } from '@expo/vector-icons';
 import AchievementItem from "../components/AchievementItem";
 import { Achievement, getAchievementDetails } from "../components/utils/achievementManagement";
+import { DailyActivityLog, getActivityHistory, logActivityForToday } from "../components/utils/activityLogging";
+import ActivityCalendarDay, { ActivityCalendarDayType } from "../components/ActivityCalendarDay";
 
 // interface of all user info stored in firestore
 interface UserInfo {
@@ -44,6 +46,7 @@ export default function Profile() {
   const [friendStatus, setFriendStatus] = useState<FriendshipStatus>('none');
   const [friendActionLoading, setFriendActionLoading] = useState(false);
   const [achievements, setAchievements] = useState<Achievement[]>([]);
+  const [activityData, setActivityData] = useState<DailyActivityLog[]>([]);
 
   const loadUserInfo = async () => {
     try {
@@ -226,6 +229,11 @@ export default function Profile() {
     loadAchievements();
   }, [userInfo]);
 
+  // fetch activity info on load
+  useEffect(() => {
+    fetchActivity();
+  }, [])
+
   // Get button text based on friend status
   const getFriendButtonText = () => {
     switch (friendStatus) {
@@ -257,8 +265,86 @@ export default function Profile() {
     return `https://api.dicebear.com/9.x/fun-emoji/png?seed=${seed}`;
   }, [userInfo?.username]);
 
+  const fetchActivity = async () => {
+    try {
+      //get user email
+      if (!userInfo) {
+        console.error("Unable to get user info when fetching activity.");
+        return;
+      }
+
+      //get activity for this year
+      const now = new Date(); //local time
+      const startOfYear = new Date(Date.UTC(now.getUTCFullYear(), 0, 1));
+      const endOfToday = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+
+      const activityData: DailyActivityLog[] = await getActivityHistory(userInfo?.email, startOfYear, endOfToday);
+      setActivityData(activityData);
+
+      /*
+      activityData.forEach((log : DailyActivityLog) => {
+        const date = new Date(log.date  + 'T00:00:00Z');
+        console.log("On server: " + log.date + " Local time: " + date.toLocaleDateString());
+      });
+      */
+
+    } catch (error: any) {
+      console.error(error);
+    }
+  }
+
+  const activityCalendarComponents = () => {
+    let startIdx = 0;
+    const columns = []
+
+    while (startIdx < activityData.length) {
+      const buff = [];
+
+      // Check if this batch contains the start of a month
+      let label = null;
+      for (let i = startIdx; i < Math.min(startIdx + 7, activityData.length); i++) {
+        const current = activityData[i];
+        const currDate = new Date(current.date);
+        if (currDate.getDate() === 1) {
+          label = new Intl.DateTimeFormat('en-us', { month: 'short' }).format(currDate);
+          break;
+        }
+      }
+    
+      // Add label or empty at top
+      buff.push(
+        <ActivityCalendarDay 
+          key={`label-${startIdx}`}
+          type={label ? ActivityCalendarDayType.label : ActivityCalendarDayType.empty} 
+          label={label || ''}
+        />
+      );
+
+      //push the next 7 days
+      for (let i = startIdx; i < Math.min(startIdx + 7, activityData.length); i++) {
+        const current : DailyActivityLog = activityData[i];
+        buff.push(
+          <ActivityCalendarDay 
+            key={current.date} 
+            log={current} 
+          />
+        );
+      }
+
+      //add the column
+      columns.push(
+        <View key={`col-${startIdx}`} className="flex-col flex-nowrap overflow-visible">
+          {buff}
+        </View>
+      )
+
+      startIdx += 7;
+    }
+    return columns;
+  }
+
   return (
-    <View className="flex-1 bg-stone-950">
+    <ScrollView className="flex-1 bg-stone-950">
       {loading ? (
         <View className="flex-1 justify-center items-center">
           <ActivityIndicator size="large" color="#14b8a6" />
@@ -353,12 +439,24 @@ export default function Profile() {
                   ))}
                 </ScrollView>
               </View>
-            </View>
 
+              {/* Activity Calendar */}
+              <View className="my-8">
+                <Text className="text-white font-bold my-4">
+                  Activity
+                </Text>
+                <ScrollView horizontal={true} showsHorizontalScrollIndicator={false} className="flex-row">
+                  <View className="flex flex-row flex-nowrap">
+                    {activityCalendarComponents()}
+                  </View>
+                </ScrollView>
+              </View>
+
+            </View>
           </View>
 
         </View>
       )}
-    </View>
+    </ScrollView>
   );
 }

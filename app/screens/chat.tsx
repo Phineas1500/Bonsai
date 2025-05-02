@@ -11,6 +11,7 @@ import { updateUserStreak } from '@components/utils/userManagement';
 import { chatbot } from '@/app/components/hooks/chatbotHook';
 import { Timestamp } from 'firebase/firestore';
 import AIService from '@contexts/AIService';
+import { logActivityForToday } from '../components/utils/activityLogging';
 
 export default function Chat() {
   const [message, setMessage] = useState('');
@@ -167,6 +168,9 @@ export default function Chat() {
       if (userInfo) {
         const checkedIn = await updateUserStreak(userInfo.email);
         setDailyStreakCheckIn(checkedIn);
+
+        //record activity log for today
+        await logActivityForToday(userInfo.email);
       } else {
         console.log("Couldn't get userInfo, streak not updated");
       }
