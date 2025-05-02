@@ -5,6 +5,7 @@ import * as Google from 'expo-auth-session/providers/google';
 import { useUser } from '@contexts/UserContext';
 import React from 'react';
 import { NotificationPreferences, NotificationTrigger, useNotification } from '../contexts/NotificationContext';
+import { scheduleLocalNotification, NotificationPayload } from '@components/utils/notificationAPI';
 
 import { router } from 'expo-router';
 import { auth, db } from '@/firebaseConfig';
@@ -252,6 +253,41 @@ export default function Settings() {
         }
     }
 
+    // Function to schedule the check-in notification
+    const scheduleCheckInNotification = async () => {
+        if (!userInfo?.email) {
+            Alert.alert("Error", "User information not available.");
+            console.error("Cannot schedule notification without user email.");
+            return;
+        }
+
+        const triggerTime = new Date(Date.now() + 5 * 1000); // 5 seconds from now
+
+        const notificationPayload: NotificationPayload = {
+            email: userInfo.email, // Needed for potential future use, not strictly for local scheduling
+            title: "Check-in Reminder",
+            body: "How are your tasks going? Open Bonsai to check in.",
+            triggerTime: triggerTime.toISOString(),
+            data: {
+                targetScreen: '/screens/chat' // Data to indicate where to navigate
+            }
+        };
+
+        try {
+            const notificationId = await scheduleLocalNotification(notificationPayload);
+            if (notificationId) {
+                Alert.alert("Success", "Check-in notification scheduled in 5 seconds.");
+                console.log(`Scheduled check-in notification with ID: ${notificationId}`);
+            } else {
+                    Alert.alert("Info", "Check-in notification was not scheduled (likely because the time was in the past).");
+            }
+        } catch (error) {
+            console.error("Failed to schedule check-in notification:", error);
+            Alert.alert("Error", "Failed to schedule check-in notification.");
+        }
+    };
+    
+
     return (
         <>
             <ScrollView className='flex-1 bg-stone-950'>
@@ -403,6 +439,13 @@ export default function Settings() {
                                 value={hiddenAchievements}
                             />
                         </View>
+                    </View>
+
+                    <View className="w-full mb-6">
+                        <Button
+                            title="Send Check-In Notification"
+                            onPress={scheduleCheckInNotification} // Use the new handler
+                        />
                     </View>
 
                     <ChangeUsernameModal
