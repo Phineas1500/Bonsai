@@ -100,7 +100,7 @@ const TaskItem = ({ itemData, onEdit, onDelete }: TaskItemProps) => {
           </Text>
           <Text className="text-gray-400 text-xs ml-2">
             {itemData.isTask && itemData.endTime ?
-              `Due: ${format(new Date(itemData.endTime), 'MMM d')}` :
+              `${format(new Date(itemData.endTime), 'MMM d')}` :
               format(new Date(itemData.startTime), 'h:mm a')}
           </Text>
           <View className="mt-1 flex-row items-center">
