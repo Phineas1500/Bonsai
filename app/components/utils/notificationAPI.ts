@@ -94,6 +94,7 @@ export const sendPushNotification = async (notification: NotificationPayload) =>
     //fetch their expo push token from firebase 
     let expoPushToken: string | null = null;
     try {
+        //console.log("email", notification?.email);
         const userSnapshot = await getUserByEmail(notification.email);
         if (!userSnapshot) {
             console.error("User not found:", notification.email);

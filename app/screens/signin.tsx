@@ -21,6 +21,7 @@ export default function SignIn() {
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
+  const { updateUserInfo } = useUser(); // Use the new updateUserInfo function
 
   const handleSignIn = async () => {
     try {
@@ -52,10 +53,14 @@ export default function SignIn() {
         throw new Error('Account does not exist. Please sign up first.');
       }
 
+      updateUserInfo({
+        email: loginEmail
+      });
+
       await signInWithEmailAndPassword(auth, loginEmail, password);
 
       //check if mfa
-      const { updateUserInfo } = useUser(); // Use the new updateUserInfo function
+      
       const useMFA = await fetchUserMFA(loginEmail, updateUserInfo);
       if (useMFA) {
         router.push('/screens/mfaRedirect');
