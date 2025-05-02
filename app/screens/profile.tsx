@@ -240,10 +240,12 @@ export default function Profile() {
     loadAchievements();
   }, [userInfo]);
 
-  // fetch activity info on load
+  // fetch activity info once userInfo has been loaded
   useEffect(() => {
-    fetchActivity();
-  }, [])
+    if (userInfo?.email) {
+      fetchActivity();
+    }
+  }, [userInfo])
 
   // Get button text based on friend status
   const getFriendButtonText = () => {
