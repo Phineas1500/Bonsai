@@ -77,7 +77,7 @@ export function TasksProvider({ children }: { children: ReactNode }) {
     return Math.max(1, Math.min(10, priority));
   };
 
-  const fetchCalendarEvents = async (userInfo: UserInfo) => {
+  const fetchCalendarEvents = async (userInfo: UserInfo, calendarId: string) => {
     if (!userInfo?.calendarAuth?.access_token) {
       setError("No access token available");
       return [];
@@ -89,14 +89,21 @@ export function TasksProvider({ children }: { children: ReactNode }) {
     try {
       console.log("Fetching calendar events with token:", userInfo.calendarAuth.access_token.substring(0, 10) + "...");
 
+      const midnightUTC = new Date();
+      midnightUTC.setUTCHours(0, 0, 0, 0);
+
       const params = {
-        timeMin: new Date().setHours(0,0,0,0), //fetch from start of the day
+        timeMin: midnightUTC.toISOString(), //fetch from start of the day
         maxResults: 10,
         singleEvents: true,
         orderBy: "startTime"
       };
 
-      const response = await axios.get(`https://www.googleapis.com/calendar/v3/calendars/${bonsaiCalendarID}/events`, {
+      //console.log("access token: ", userInfo.calendarAuth.access_token);
+      //console.log("Bonsai calendar ID:", bonsaiCalendarID);
+      //console.log("parameter calendar id: ", calendarId);
+
+      const response = await axios.get(`https://www.googleapis.com/calendar/v3/calendars/${calendarId}/events`, {
         headers: {
           Authorization: `Bearer ${userInfo.calendarAuth.access_token}`
         },
@@ -141,6 +148,7 @@ export function TasksProvider({ children }: { children: ReactNode }) {
         console.error("Response error data:", error.response.data);
         console.error("Response error status:", error.response.status);
       }
+      console.log("Request:", error.request);
       return [];
     } finally {
       setIsLoading(false);
@@ -251,7 +259,9 @@ export function TasksProvider({ children }: { children: ReactNode }) {
       }
     );
     const existing = calendarList.data.items.find((c: any) => c.summary === "Bonsai");
-    if (existing) return existing.id;
+    if (existing) {
+      return existing.id
+    }
 
     //if calendar doesn't exist, create it
     const create = await axios.post(
@@ -556,7 +566,7 @@ export function TasksProvider({ children }: { children: ReactNode }) {
         setBonsaiCalendarId(id);
 
         // Get calendar events
-        const events = await fetchCalendarEvents(userInfo);
+        const events = await fetchCalendarEvents(userInfo, id);
 
         // Get Google Tasks
         const tasks = await fetchGoogleTasks(userInfo);

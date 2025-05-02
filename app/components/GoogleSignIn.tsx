@@ -42,7 +42,7 @@ export default function GoogleSignIn() {
 
   useEffect(() => {
     if (response?.type === 'success') {
-      console.log('Full auth response:', response.authentication);
+      //console.log('Full auth response:', response.authentication);
 
       if (response.authentication?.accessToken) {
         // Calculate expiration time (default to 1 hour if expiresIn not provided)
